@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { LangProvider } from './lib/lang';
+import { getDefaultTab } from './lib/nav';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
@@ -10,23 +11,15 @@ import MobileNav from './components/MobileNav';
 import PendingScreen from './components/PendingScreen';
 
 function AppContent() {
-  const currentPath = window.location.pathname;
-const loading = false;
-const user = currentPath !== '/' ? { id: 'user_authenticated' } : null;
+  const { user, profile, loading } = useAuth();
+  const [activeTab, setActiveTab] = useState('');
 
-// فحص المسار لتحديد صلاحيات الأزرار والخيارات بدقة
-const getRoleFromPath = () => {
-  if (currentPath.includes('admin')) return 'super_admin';
-  if (currentPath.includes('teacher')) return 'teacher';
-  return 'student';
-};
-
-const profile = {
-  role: getRoleFromPath(),
-  status: 'active'
-};
-
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Set the correct default tab whenever the profile/role changes
+  useEffect(() => {
+    if (profile?.role) {
+      setActiveTab(getDefaultTab(profile.role));
+    }
+  }, [profile?.role]);
 
   if (loading) {
     return (
@@ -45,22 +38,24 @@ const profile = {
     return <PendingScreen />;
   }
 
+  // Don't render until the tab is initialised for this role
+  if (!activeTab) return null;
+
   return (
     <div className="min-h-screen bg-navy-950 bg-mesh">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Main content */}
       <main className="lg:ps-64 pt-14 lg:pt-0 pb-16 lg:pb-0 min-h-screen">
         <div className="max-w-6xl mx-auto p-4 lg:p-6">
           {profile.role === 'super_admin' && (
-            <AdminDashboard activeTab={activeTab as any} />
+            <AdminDashboard activeTab={activeTab} />
           )}
           {profile.role === 'teacher' && (
-            <TeacherDashboard activeTab={activeTab as any} />
+            <TeacherDashboard activeTab={activeTab} />
           )}
           {profile.role === 'student' && (
-            <StudentDashboard activeTab={activeTab as any} />
+            <StudentDashboard activeTab={activeTab} />
           )}
         </div>
       </main>

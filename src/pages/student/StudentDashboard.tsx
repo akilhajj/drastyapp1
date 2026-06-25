@@ -10,16 +10,17 @@ import {
   Star, Heart, FlaskConical, Calculator, Globe, Trophy, Zap, Send
 } from 'lucide-react';
 
-type StudentTab = 'home' | 'lessons' | 'notifications' | 'tickets';
-interface Props { activeTab: StudentTab }
+interface Props { activeTab: string }
 
 export default function StudentDashboard({ activeTab }: Props) {
   return (
     <div className="animate-fade-in">
-      {activeTab === 'home' && <StudentHome />}
-      {activeTab === 'lessons' && <StudentLessons />}
-      {activeTab === 'notifications' && <StudentNotifications />}
-      {activeTab === 'tickets' && <StudentTickets />}
+      {activeTab === 'home'            && <StudentHome />}
+      {activeTab === 'lessons'          && <StudentLessons />}
+      {activeTab === 'notifications'    && <StudentNotifications />}
+      {activeTab === 'student_notif'    && <StudentNotifications />}
+      {activeTab === 'tickets'          && <StudentTickets />}
+      {activeTab === 'student_tickets'  && <StudentTickets />}
     </div>
   );
 }

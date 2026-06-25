@@ -21,28 +21,24 @@ export default function AuthPage() {
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [registered, setRegistered] = useState(false);
 
-async function handleSubmit(e: React.FormEvent) {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  if (mode === 'login') {
-    if (email === 'admin@institute.edu') {
-      window.location.href = '/admin';
-    } else if (email === 'teacher@institute.edu') {
-      window.location.href = '/teacher';
-    } else if (email === 'student@institute.edu') {
-      window.location.href = '/dashboard';
+    if (mode === 'login') {
+      const { error } = await signIn(email, password);
+      if (error) setError(error);
     } else {
-      setError('خطأ في البريد الإلكتروني أو كلمة المرور');
+      const { error } = await signUp(email, password, fullName, phone);
+      if (error) {
+        setError(error);
+      } else {
+        setRegistered(true);
+      }
     }
-  } else {
-    setRegistered(true);
+    setLoading(false);
   }
-  setLoading(false);
-}
-
-
 
   async function uploadReceipt(userId: string) {
     if (!receiptFile) return null;
