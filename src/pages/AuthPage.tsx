@@ -27,7 +27,7 @@ export default function AuthPage() {
     setLoading(true);
 
     if (mode === 'login') {
-  window.location.href = '/admin';
+  window.location.href = '/admin/dashboard';
 } else {
 
 
