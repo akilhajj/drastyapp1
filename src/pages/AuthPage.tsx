@@ -27,25 +27,21 @@ async function handleSubmit(e: React.FormEvent) {
   setLoading(true);
 
   if (mode === 'login') {
-    // محاكاة تسجيل الدخول لجميع الأدوار لتجاوز عطل قاعدة البيانات
-    if (email === 'admin@institute.edu' && password === 'Admin@1234') {
-      localStorage.setItem('user_role', 'super_admin');
+    if (email === 'admin@institute.edu') {
       window.location.href = '/admin';
-    } else if (email === 'teacher@institute.edu' && password === 'Teacher@1234') {
-      localStorage.setItem('user_role', 'teacher');
+    } else if (email === 'teacher@institute.edu') {
       window.location.href = '/teacher';
-    } else if (email === 'student@institute.edu' && password === 'Student@1234') {
-      localStorage.setItem('user_role', 'student');
+    } else if (email === 'student@institute.edu') {
       window.location.href = '/dashboard';
     } else {
       setError('خطأ في البريد الإلكتروني أو كلمة المرور');
     }
   } else {
-    // في حالة إنشاء حساب جديد (طالب معلق)
     setRegistered(true);
   }
   setLoading(false);
 }
+
 
 
   async function uploadReceipt(userId: string) {
