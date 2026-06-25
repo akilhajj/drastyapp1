@@ -12,11 +12,20 @@ import PendingScreen from './components/PendingScreen';
 function AppContent() {
   const currentPath = window.location.pathname;
 const loading = false;
-const user = currentPath !== '/' ? { id: 'user_active' } : null;
+const user = currentPath !== '/' ? { id: 'user_authenticated' } : null;
+
+// فحص المسار لتحديد صلاحيات الأزرار والخيارات بدقة
+const getRoleFromPath = () => {
+  if (currentPath.includes('admin')) return 'super_admin';
+  if (currentPath.includes('teacher')) return 'teacher';
+  return 'student';
+};
+
 const profile = {
-  role: currentPath.includes('admin') ? 'super_admin' : currentPath.includes('teacher') ? 'teacher' : 'student',
+  role: getRoleFromPath(),
   status: 'active'
 };
+
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (loading) {
