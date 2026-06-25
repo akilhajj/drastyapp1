@@ -26,7 +26,6 @@ const profile = {
   status: 'active'
 };
 
-  const { user, profile, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('');
 
   // Set the correct default tab whenever the profile/role changes
