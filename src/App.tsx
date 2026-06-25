@@ -1,50 +1,39 @@
-import React, { useState, useEffect } from 'react';
-import { AuthProvider, useAuth } from './lib/auth';
-import { LangProvider } from './lib/lang';
-import { getDefaultTab } from './lib/nav';
+import React, { useState } from 'react';
+import { useAuth } from './context/AuthContext';
 import AuthPage from './pages/AuthPage';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import TeacherDashboard from './pages/teacher/TeacherDashboard';
-import StudentDashboard from './pages/student/StudentDashboard';
-import Sidebar from './components/Sidebar';
-import MobileNav from './components/MobileNav';
+import AdminDashboard from './components/AdminDashboard';
+import TeacherDashboard from './components/TeacherDashboard';
+import StudentDashboard from './components/StudentDashboard';
 import PendingScreen from './components/PendingScreen';
 
-const currentPath = window.location.pathname;
-const loading = false;
-const user = currentPath !== '/' ? { id: 'user_authenticated' } : null;
+export default function App() {
+  const currentPath = window.location.pathname;
+  const loading = false;
+  const user = currentPath !== '/' ? { id: 'user_authenticated' } : null;
 
-// فحص المسار لتحديد صلاحيات الأزرار والخيارات بدقة
-const getRoleFromPath = () => {
-  if (currentPath.includes('admin')) return 'super_admin';
-  if (currentPath.includes('teacher')) return 'teacher';
-  return 'student';
-};
+  const getRoleFromPath = () => {
+    if (currentPath.includes('admin')) return 'super_admin';
+    if (currentPath.includes('teacher')) return 'teacher';
+    return 'student';
+  };
 
-const profile = {
-  role: getRoleFromPath(),
-  status: 'active'
-};
-
-  const [activeTab, setActiveTab] = useState('');
-
-  // Set the correct default tab whenever the profile/role changes
-  useEffect(() => {
-    if (profile?.role) {
-      setActiveTab(getDefaultTab(profile.role));
-    }
-  }, [profile?.role]);
+  const profile = {
+    role: getRoleFromPath(),
+    status: 'active'
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-navy-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-2 border-primary-700 border-t-primary-400 rounded-full animate-spin" />
-          <div className="text-white/40 text-sm animate-pulse">Loading...</div>
-        </div>
+      <div className="min-screen bg-navy-950 flex items-center justify-center">
+        <div className="w-12 h-12 border-2 border-primary-700 border-t-primary-400 rounded-full animate-spin" />
       </div>
     );
   }
+
+  if (!user || !profile) {
+    return <AuthPage />;
+  }
+
 
   if (!user || !profile) return <AuthPage />;
 
