@@ -27,10 +27,9 @@ export default function AuthPage() {
     setLoading(true);
 
     if (mode === 'login') {
-  window.location.href = '/admin/dashboard';
-} else {
-
-
+      /const { error } = await signIn(email, password);
+   /if (error) setError(error);
+    } else {
       const { error } = await signUp(email, password, fullName, phone);
       if (error) {
         setError(error);
