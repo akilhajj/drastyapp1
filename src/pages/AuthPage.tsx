@@ -27,8 +27,8 @@ export default function AuthPage() {
     setLoading(true);
 
     if (mode === 'login') {
-      /const { error } = await signIn(email, password);
-   /if (error) setError(error);
+      const { error } = await signIn(email, password);
+   if (error) setError(error);
     } else {
       const { error } = await signUp(email, password, fullName, phone);
       if (error) {
