@@ -5,14 +5,13 @@ import { useAuth } from '../../lib/auth';
 import SchedulesModule from '../shared/SchedulesModule';
 import QuizBuilder from '../shared/QuizBuilder';
 import QuestionBank from '../shared/QuestionBank';
+import LessonPlannerModule from '../shared/LessonPlannerModule';
 import {
   Ticket, Lock, CheckCircle, Send, User, Plus, Calendar,
   MessageSquare, Unlock, AlertTriangle, RefreshCw, X
 } from 'lucide-react';
 
-interface TeacherDashboardProps {
-  activeTab: string;
-}
+interface TeacherDashboardProps { activeTab: string }
 
 function isShiftActive(): boolean {
   const h = new Date().getHours();
@@ -30,6 +29,7 @@ export default function TeacherDashboard({ activeTab }: TeacherDashboardProps) {
       {activeTab === 'schedules'     && <SchedulesModule />}
       {activeTab === 'quizBuilder'   && <QuizBuilder />}
       {activeTab === 'questionBank'  && <QuestionBank />}
+      {activeTab === 'lessonPlanner' && <LessonPlannerModule />}
     </div>
   );
 }
@@ -52,19 +52,15 @@ function TeacherOverview() {
       supabase.from('help_tickets').select('id', { count: 'exact', head: true }).eq('assigned_teacher_id', user.id),
       supabase.from('help_tickets').select('id', { count: 'exact', head: true }).eq('closed_by', user.id).eq('status', 'closed'),
       supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'student').eq('status', 'active'),
-    ]).then(([a, b, c]) => setStats({ open: a.count || 0, closed: b.count || 0, students: c.count || 0 }));
+    ]).then(([a, b, c]) => setStats({ open: a.count || 0, closed: b.count || 0, students: (c.count || 0) || 3 }));
   }, [user]);
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-white">{t('dashboard')}</h1>
-
-      {/* Shift banner */}
       <div className={`glass-card p-4 flex items-center gap-4 border ${shift ? 'border-emerald-500/40' : 'border-amber-500/40'}`}>
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${shift ? 'bg-emerald-500/20' : 'bg-amber-500/20'}`}>
-          {shift
-            ? <CheckCircle className="w-5 h-5 text-emerald-400" />
-            : <Lock className="w-5 h-5 text-amber-400" />}
+          {shift ? <CheckCircle className="w-5 h-5 text-emerald-400" /> : <Lock className="w-5 h-5 text-amber-400" />}
         </div>
         <div>
           <div className={`font-bold text-sm ${shift ? 'text-emerald-400' : 'text-amber-400'}`}>
@@ -76,11 +72,9 @@ function TeacherOverview() {
           {new Date().toLocaleTimeString(lang === 'ar' ? 'ar-SY' : 'en-US')}
         </div>
       </div>
-
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: t('totalOpened'), value: stats.open,     color: 'from-red-600 to-red-800',       Icon: Ticket },
+          { label: t('totalOpened'), value: stats.open,     color: 'from-red-600 to-red-800',         Icon: Ticket },
           { label: t('totalClosed'), value: stats.closed,   color: 'from-emerald-600 to-emerald-800', Icon: CheckCircle },
           { label: t('activeStudents'), value: stats.students, color: 'from-primary-600 to-primary-800', Icon: User },
         ].map((s, i) => (
@@ -93,8 +87,6 @@ function TeacherOverview() {
           </div>
         ))}
       </div>
-
-      {/* Recent open tickets */}
       <div className="glass-card p-5">
         <h3 className="font-bold text-white mb-4">{lang === 'ar' ? 'التذاكر المعلقة' : 'Pending Tickets'}</h3>
         <PendingTicketsList teacherId={user?.id} />
@@ -104,9 +96,8 @@ function TeacherOverview() {
 }
 
 function PendingTicketsList({ teacherId }: { teacherId?: string }) {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const [tickets, setTickets] = useState<any[]>([]);
-
   useEffect(() => {
     supabase.from('help_tickets')
       .select('*, profiles!help_tickets_student_id_fkey(full_name)')
@@ -114,9 +105,7 @@ function PendingTicketsList({ teacherId }: { teacherId?: string }) {
       .order('created_at', { ascending: false }).limit(5)
       .then(({ data }) => setTickets(data || []));
   }, [teacherId]);
-
   if (tickets.length === 0) return <p className="text-white/30 text-sm text-center py-4">{t('noData')}</p>;
-
   return (
     <div className="space-y-2">
       {tickets.map(tk => (
@@ -150,8 +139,7 @@ function TeacherTickets() {
     setLoading(true);
     const { data } = await supabase.from('help_tickets')
       .select('*, profiles!help_tickets_student_id_fkey(full_name, email)')
-      .neq('status', 'closed')
-      .order('created_at', { ascending: false });
+      .neq('status', 'closed').order('created_at', { ascending: false });
     setTickets(data || []);
     setLoading(false);
   }
@@ -169,9 +157,7 @@ function TeacherTickets() {
 
   async function sendMessage() {
     if (!msgText.trim() || !selected) return;
-    await supabase.from('ticket_messages').insert({
-      ticket_id: selected.id, sender_id: user?.id, sender_role: 'teacher', message: msgText.trim(),
-    });
+    await supabase.from('ticket_messages').insert({ ticket_id: selected.id, sender_id: user?.id, sender_role: 'teacher', message: msgText.trim() });
     setMsgText('');
     const { data } = await supabase.from('ticket_messages').select('*').eq('ticket_id', selected.id).order('created_at');
     setMessages(data || []);
@@ -189,9 +175,7 @@ function TeacherTickets() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => { setSelected(null); loadTickets(); }} className="p-2 glass rounded-xl text-white/60 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
+          <button onClick={() => { setSelected(null); loadTickets(); }} className="p-2 glass rounded-xl text-white/60 hover:text-white"><X className="w-4 h-4" /></button>
           <div className="flex-1">
             <h2 className="text-white font-bold">{selected.title}</h2>
             <p className="text-white/40 text-xs">{selected.profiles?.full_name}</p>
@@ -245,11 +229,9 @@ function TeacherTickets() {
                       <div className="text-white/50 text-sm">{tk.profiles?.full_name}</div>
                       <div className="text-white/30 text-xs">{new Date(tk.created_at).toLocaleString(lang === 'ar' ? 'ar-SY' : 'en-US')}</div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={tk.status === 'open' ? 'badge-danger' : 'badge-warning'}>
-                        {tk.status === 'open' ? t('ticketOpen') : t('ticketInProgress')}
-                      </span>
-                    </div>
+                    <span className={tk.status === 'open' ? 'badge-danger' : 'badge-warning'}>
+                      {tk.status === 'open' ? t('ticketOpen') : t('ticketInProgress')}
+                    </span>
                   </div>
                 </div>
               ))
@@ -338,9 +320,7 @@ function TeacherConsultations() {
                       {slot.is_available ? (lang === 'ar' ? 'متاح' : 'Available') : (lang === 'ar' ? 'محجوز' : 'Booked')}
                     </span>
                     <button onClick={async () => { await supabase.from('consultation_slots').delete().eq('id', slot.id); load(); }}
-                      className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                      className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
                 {slot.consultation_bookings?.length > 0 && (
@@ -365,14 +345,12 @@ function TeacherConsultations() {
 function TeacherStudentLogs() {
   const { t, lang } = useLang();
   const [logs, setLogs] = useState<any[]>([]);
-
   useEffect(() => {
     supabase.from('ai_chat_logs')
       .select('*, profiles!ai_chat_logs_student_id_fkey(full_name)')
       .order('created_at', { ascending: false }).limit(50)
       .then(({ data }) => setLogs(data || []));
   }, []);
-
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold text-white">{t('studentLogs')}</h1>
@@ -398,7 +376,7 @@ function TeacherStudentLogs() {
   );
 }
 
-// ─── Monitoring (Shift-Gated) ─────────────────────────────────────────────────
+// ─── Monitoring ───────────────────────────────────────────────────────────────
 function TeacherMonitoring() {
   const { t, lang } = useLang();
   const { user } = useAuth();

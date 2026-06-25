@@ -14,6 +14,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [specialization, setSpecialization] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,7 +31,7 @@ export default function AuthPage() {
       const { error } = await signIn(email, password);
       if (error) setError(error);
     } else {
-      const { error } = await signUp(email, password, fullName, phone);
+      const { error } = await signUp(email, password, fullName, phone, specialization);
       if (error) {
         setError(error);
       } else {
@@ -158,6 +159,22 @@ export default function AuthPage() {
                   <label className="text-white/60 text-sm mb-1.5 block">{t('phone')}</label>
                   <input value={phone} onChange={e => setPhone(e.target.value)}
                     className="input-field" placeholder={t('phone')} type="tel" />
+                </div>
+                <div>
+                  <label className="text-white/60 text-sm mb-1.5 block">
+                    {t('specialization')} <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    value={specialization}
+                    onChange={e => setSpecialization(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">{t('selectSpecialization')}</option>
+                    <option value="grade_9">{t('grade9')}</option>
+                    <option value="bac_science">{t('bacScience')}</option>
+                    <option value="bac_literary">{t('bacLiterary')}</option>
+                  </select>
                 </div>
               </>
             )}

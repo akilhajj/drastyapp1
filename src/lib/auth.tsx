@@ -46,7 +46,7 @@ interface AuthContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName: string, phone: string, specialization?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -93,9 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   }
 
-  async function signUp(_e: string, _p: string, fullName: string, _ph: string): Promise<{ error: string | null }> {
+  async function signUp(_e: string, _p: string, fullName: string, _ph: string, specialization?: string): Promise<{ error: string | null }> {
     setRole('student');
-    setProfile(prev => ({ ...prev, full_name: fullName, status: 'pending' }));
+    setProfile(prev => ({ ...prev, full_name: fullName, status: 'pending', specialization: specialization as any }));
     return { error: null };
   }
 

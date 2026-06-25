@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/auth';
 import AiChatWidget from '../../components/AiChatWidget';
 import HelpTicketModal from '../../components/HelpTicketModal';
 import ReligionSelector from '../../components/ReligionSelector';
+import StudentLessonPlans from './StudentLessonPlans';
 import {
   Lock, CheckCircle, PlayCircle, ChevronRight, BookOpen, Bell,
   Star, Heart, FlaskConical, Calculator, Globe, Trophy, Zap, Send
@@ -15,12 +16,13 @@ interface Props { activeTab: string }
 export default function StudentDashboard({ activeTab }: Props) {
   return (
     <div className="animate-fade-in">
-      {activeTab === 'home'            && <StudentHome />}
+      {activeTab === 'home'             && <StudentHome />}
       {activeTab === 'lessons'          && <StudentLessons />}
       {activeTab === 'notifications'    && <StudentNotifications />}
       {activeTab === 'student_notif'    && <StudentNotifications />}
       {activeTab === 'tickets'          && <StudentTickets />}
       {activeTab === 'student_tickets'  && <StudentTickets />}
+      {activeTab === 'lessonPlans'      && <StudentLessonPlans />}
     </div>
   );
 }
@@ -92,7 +94,6 @@ function StudentHome() {
 
   return (
     <div className="space-y-5 pb-20 lg:pb-6">
-      {/* Religion selector modal */}
       {showReligion && (
         <ReligionSelector
           onSelect={async (choice) => {
@@ -104,7 +105,6 @@ function StudentHome() {
         />
       )}
 
-      {/* Welcome */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-white/50 text-sm">{lang === 'ar' ? 'مرحباً،' : 'Welcome back,'}</p>
@@ -122,7 +122,6 @@ function StudentHome() {
         </div>
       </div>
 
-      {/* Banner */}
       {currentBanner && (
         <div className="relative rounded-2xl overflow-hidden h-44 lg:h-56">
           {currentBanner.image_url && (
@@ -151,7 +150,6 @@ function StudentHome() {
         </div>
       )}
 
-      {/* 3D Student mascot greeting */}
       {!currentBanner && (
         <div className="glass-card p-5 flex items-center gap-4 overflow-hidden relative">
           <div className="absolute inset-0 bg-gradient-to-r from-primary-900/20 to-transparent" />
@@ -169,7 +167,6 @@ function StudentHome() {
         </div>
       )}
 
-      {/* Progress */}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: lang === 'ar' ? 'الدروس' : 'Lessons', value: Object.keys(progress).length, icon: <BookOpen className="w-4 h-4" />, color: 'from-primary-600 to-primary-800' },
@@ -186,7 +183,6 @@ function StudentHome() {
         ))}
       </div>
 
-      {/* Subject cards */}
       <div>
         <h3 className="font-bold text-white mb-3 flex items-center gap-2">
           <Zap className="w-4 h-4 text-primary-400" />
@@ -202,7 +198,6 @@ function StudentHome() {
         </div>
       </div>
 
-      {/* AI Chat + Ticket */}
       <AiChatWidget onOpenTicket={() => setTicketOpen(true)} />
       {ticketOpen && <HelpTicketModal onClose={() => setTicketOpen(false)} />}
     </div>
@@ -222,7 +217,6 @@ function SubjectCard({ subject, unlocked, icon, lang }: {
       boxShadow: unlocked ? `0 8px 30px ${subject.color_from}40` : 'none',
       border: `1px solid ${unlocked ? subject.color_from + '60' : 'rgba(255,255,255,0.1)'}`,
     }}>
-      {/* Shine */}
       {unlocked && <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-transparent" />}
       <div className="relative">
         <div className="flex items-start justify-between mb-8">
@@ -295,7 +289,6 @@ function StudentLessons() {
   const [selected, setSelected] = useState<Subject | null>(null);
   const [lessonProgress, setLessonProgress] = useState<Record<string, StudentLessonProgress>>({});
   const [watchingLesson, setWatchingLesson] = useState<Lesson | null>(null);
-  const msgEndRef2 = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.from('subjects').select('*').eq('is_active', true).order('order_index')
@@ -323,11 +316,8 @@ function StudentLessons() {
   async function markComplete(lessonId: string) {
     if (!profile) return;
     await supabase.from('student_lesson_progress').upsert({
-      student_id: profile.id,
-      lesson_id: lessonId,
-      completed: true,
-      watch_percentage: 100,
-      completed_at: new Date().toISOString(),
+      student_id: profile.id, lesson_id: lessonId,
+      completed: true, watch_percentage: 100, completed_at: new Date().toISOString(),
     }, { onConflict: 'student_id,lesson_id' });
     const { data } = await supabase.from('student_lesson_progress').select('*').eq('student_id', profile.id);
     const map: Record<string, StudentLessonProgress> = {};
@@ -351,7 +341,6 @@ function StudentLessons() {
           </button>
           <h2 className="font-bold text-white">{lang === 'ar' ? watchingLesson.title_ar : watchingLesson.title_en}</h2>
         </div>
-
         <div className="glass-card overflow-hidden">
           {watchingLesson.video_url ? (
             <div className="aspect-video bg-black">
@@ -369,8 +358,7 @@ function StudentLessons() {
           <div className="p-5">
             <h3 className="font-bold text-white text-lg">{lang === 'ar' ? watchingLesson.title_ar : watchingLesson.title_en}</h3>
             <p className="text-white/60 text-sm mt-2">{lang === 'ar' ? watchingLesson.description_ar : watchingLesson.description_en}</p>
-            <button onClick={() => markComplete(watchingLesson.id)}
-              className="mt-4 premium-btn w-full flex items-center justify-center gap-2">
+            <button onClick={() => markComplete(watchingLesson.id)} className="mt-4 premium-btn w-full flex items-center justify-center gap-2">
               <CheckCircle className="w-4 h-4" />
               {lessonProgress[watchingLesson.id]?.completed ? t('completedLesson') : t('continueLesson')}
             </button>
@@ -389,7 +377,6 @@ function StudentLessons() {
           </button>
           <h2 className="font-bold text-white">{lang === 'ar' ? selected.name_ar : selected.name_en}</h2>
         </div>
-
         <div className="space-y-3">
           {lessons.map((lesson, idx) => {
             const unlocked = isLessonUnlocked(lesson, idx);
@@ -399,9 +386,8 @@ function StudentLessons() {
                 className={`glass-card p-4 flex items-center gap-4 transition-all duration-200 ${
                   unlocked ? 'cursor-pointer hover:border-white/25 hover:scale-[1.01]' : 'opacity-50 cursor-not-allowed'
                 }`}>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  completed ? 'bg-emerald-500/20' : unlocked ? `bg-gradient-to-br` : 'bg-white/10'
-                }`} style={!completed && unlocked ? { background: `linear-gradient(135deg, ${selected.color_from}, ${selected.color_to})` } : {}}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0`}
+                  style={!completed && unlocked ? { background: `linear-gradient(135deg, ${selected.color_from}, ${selected.color_to})` } : {}}>
                   {completed ? <CheckCircle className="w-5 h-5 text-emerald-400" /> :
                     unlocked ? <PlayCircle className="w-5 h-5 text-white" /> :
                     <Lock className="w-5 h-5 text-white/40" />}
@@ -418,9 +404,7 @@ function StudentLessons() {
               </div>
             );
           })}
-          {lessons.length === 0 && (
-            <div className="glass-card p-10 text-center text-white/30">{t('noData')}</div>
-          )}
+          {lessons.length === 0 && <div className="glass-card p-10 text-center text-white/30">{t('noData')}</div>}
         </div>
       </div>
     );
@@ -433,10 +417,7 @@ function StudentLessons() {
         {subjects.map(sub => (
           <div key={sub.id} onClick={() => setSelected(sub)}
             className="relative rounded-2xl overflow-hidden p-4 cursor-pointer hover:scale-[1.03] transition-all duration-300"
-            style={{
-              background: `linear-gradient(135deg, ${sub.color_from}, ${sub.color_to})`,
-              boxShadow: `0 8px 30px ${sub.color_from}40`,
-            }}>
+            style={{ background: `linear-gradient(135deg, ${sub.color_from}, ${sub.color_to})`, boxShadow: `0 8px 30px ${sub.color_from}40` }}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-transparent" />
             <div className="relative">
               <BookOpen className="w-8 h-8 text-white/80 mb-3" />
@@ -458,8 +439,7 @@ function StudentNotifications() {
 
   useEffect(() => {
     if (!profile) return;
-    supabase.from('notifications')
-      .select('*')
+    supabase.from('notifications').select('*')
       .or(`recipient_id.eq.${profile.id},is_global.eq.true`)
       .order('created_at', { ascending: false })
       .then(({ data }) => setNotifs(data || []));
@@ -470,9 +450,7 @@ function StudentNotifications() {
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
   }
 
-  const typeIcon = {
-    info: '💡', success: '✅', warning: '⚠️', alert: '🔔',
-  };
+  const typeIcon = { info: '💡', success: '✅', warning: '⚠️', alert: '🔔' };
 
   return (
     <div className="space-y-4 pb-20 lg:pb-6">
@@ -520,7 +498,6 @@ function StudentTickets() {
     const { data } = await supabase.from('help_tickets').select('*').eq('student_id', profile.id).order('created_at', { ascending: false });
     setTickets(data || []);
   }
-
   useEffect(() => { loadTickets(); }, [profile]);
 
   async function openTicket(tk: any) {
@@ -532,12 +509,7 @@ function StudentTickets() {
 
   async function sendMessage() {
     if (!msgText.trim() || !selected || !profile) return;
-    await supabase.from('ticket_messages').insert({
-      ticket_id: selected.id,
-      sender_id: profile.id,
-      sender_role: 'student',
-      message: msgText.trim(),
-    });
+    await supabase.from('ticket_messages').insert({ ticket_id: selected.id, sender_id: profile.id, sender_role: 'student', message: msgText.trim() });
     setMsgText('');
     const { data } = await supabase.from('ticket_messages').select('*').eq('ticket_id', selected.id).order('created_at');
     setMessages(data || []);
@@ -553,40 +525,27 @@ function StudentTickets() {
           </button>
           <div>
             <h2 className="font-bold text-white">{selected.title}</h2>
-            <span className={selected.status === 'open' ? 'badge-danger' : selected.status === 'in_progress' ? 'badge-warning' : 'badge-success'}>
-              {selected.status}
-            </span>
+            <span className={selected.status === 'open' ? 'badge-danger' : selected.status === 'in_progress' ? 'badge-warning' : 'badge-success'}>{selected.status}</span>
           </div>
         </div>
-
         <div className="glass-card p-4 h-80 overflow-y-auto space-y-3">
           {messages.map(m => (
             <div key={m.id} className={`flex gap-2 ${m.sender_role === 'student' ? 'justify-end' : ''}`}>
-              {m.sender_role !== 'student' && (
-                <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-xs text-white shrink-0">T</div>
-              )}
-              <div className={`max-w-xs rounded-2xl px-4 py-2 text-sm ${
-                m.sender_role === 'student' ? 'bg-primary-600 text-white rounded-tr-sm' : 'bg-white/10 text-white/80 rounded-tl-sm'
-              }`}>
+              {m.sender_role !== 'student' && <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-xs text-white shrink-0">T</div>}
+              <div className={`max-w-xs rounded-2xl px-4 py-2 text-sm ${m.sender_role === 'student' ? 'bg-primary-600 text-white rounded-tr-sm' : 'bg-white/10 text-white/80 rounded-tl-sm'}`}>
                 {m.message}
                 <div className="text-xs opacity-50 mt-1">{new Date(m.created_at).toLocaleTimeString()}</div>
               </div>
-              {m.sender_role === 'student' && (
-                <div className="w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-xs text-white shrink-0">S</div>
-              )}
+              {m.sender_role === 'student' && <div className="w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-xs text-white shrink-0">S</div>}
             </div>
           ))}
           <div ref={msgEndRef} />
         </div>
-
         {selected.status !== 'closed' && (
           <div className="flex gap-2">
-            <input value={msgText} onChange={e => setMsgText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendMessage()}
+            <input value={msgText} onChange={e => setMsgText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()}
               className="input-field flex-1" placeholder={t('sendMessage') + '...'} />
-            <button onClick={sendMessage} className="premium-btn px-4">
-              <Send className="w-4 h-4" />
-            </button>
+            <button onClick={sendMessage} className="premium-btn px-4"><Send className="w-4 h-4" /></button>
           </div>
         )}
       </div>
@@ -601,9 +560,7 @@ function StudentTickets() {
           <BookOpen className="w-4 h-4" /> {t('openTicket')}
         </button>
       </div>
-
       {showNew && <NewTicketForm profile={profile} onClose={() => { setShowNew(false); loadTickets(); }} />}
-
       <div className="space-y-3">
         {tickets.length === 0 ? (
           <div className="glass-card p-10 text-center text-white/30">{t('noData')}</div>
@@ -634,18 +591,21 @@ function StudentTickets() {
 function NewTicketForm({ profile, onClose }: { profile: any; onClose: () => void }) {
   const { t, lang } = useLang();
   const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
   const [priority, setPriority] = useState('normal');
   const [loading, setLoading] = useState(false);
 
   async function submit() {
-    if (!title.trim() || !profile) return;
+    if (!title.trim() || !body.trim() || !profile) return;
     setLoading(true);
-    await supabase.from('help_tickets').insert({
-      student_id: profile.id,
-      title: title.trim(),
-      priority,
-      status: 'open',
-    });
+    const { data: ticket } = await supabase.from('help_tickets').insert({
+      student_id: profile.id, title: title.trim(), priority, status: 'open',
+    }).select().maybeSingle();
+    if (ticket) {
+      await supabase.from('ticket_messages').insert({
+        ticket_id: ticket.id, sender_id: profile.id, sender_role: 'student', message: body.trim(),
+      });
+    }
     onClose();
     setLoading(false);
   }
@@ -654,19 +614,32 @@ function NewTicketForm({ profile, onClose }: { profile: any; onClose: () => void
     <div className="glass-card p-5 animate-slide-up space-y-4">
       <h3 className="font-bold text-white">{t('openTicket')}</h3>
       <div>
-        <label className="text-white/50 text-sm mb-1 block">{t('ticketTitle')}</label>
-        <input value={title} onChange={e => setTitle(e.target.value)} className="input-field" placeholder={t('ticketTitle')} />
+        <label className="text-white/50 text-sm mb-1 block">{t('ticketTitle')} <span className="text-red-400">*</span></label>
+        <input value={title} onChange={e => setTitle(e.target.value)} className="input-field"
+          placeholder={lang === 'ar' ? 'مثال: لا أفهم مسألة في الرياضيات' : "e.g. I don't understand a math problem"} />
+      </div>
+      <div>
+        <label className="text-white/50 text-sm mb-1 block">{t('ticketMessage')} <span className="text-red-400">*</span></label>
+        <textarea value={body} onChange={e => setBody(e.target.value)} className="input-field resize-none" rows={3}
+          placeholder={lang === 'ar' ? 'اشرح سؤالك بالتفصيل...' : 'Describe your question in detail...'} />
       </div>
       <div>
         <label className="text-white/50 text-sm mb-1 block">{lang === 'ar' ? 'الأولوية' : 'Priority'}</label>
-        <select value={priority} onChange={e => setPriority(e.target.value)} className="input-field">
-          <option value="low">{lang === 'ar' ? 'منخفض' : 'Low'}</option>
-          <option value="normal">{lang === 'ar' ? 'عادي' : 'Normal'}</option>
-          <option value="high">{lang === 'ar' ? 'عالي' : 'High'}</option>
-        </select>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { val: 'low',    ar: 'منخفضة', en: 'Low',    cls: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
+            { val: 'normal', ar: 'عادية',  en: 'Normal', cls: 'border-primary-500/40 text-primary-400 bg-primary-500/10' },
+            { val: 'high',   ar: 'عالية',  en: 'High',   cls: 'border-red-500/40 text-red-400 bg-red-500/10' },
+          ].map(p => (
+            <button key={p.val} type="button" onClick={() => setPriority(p.val)}
+              className={`py-2 rounded-xl border text-sm font-medium transition-all ${priority === p.val ? p.cls : 'border-white/15 text-white/40 hover:text-white/70'}`}>
+              {lang === 'ar' ? p.ar : p.en}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={submit} disabled={loading} className="premium-btn">{t('submit')}</button>
+        <button onClick={submit} disabled={loading || !title.trim() || !body.trim()} className="premium-btn flex-1">{t('submit')}</button>
         <button onClick={onClose} className="premium-btn-outline">{t('cancel')}</button>
       </div>
     </div>

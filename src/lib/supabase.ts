@@ -7,6 +7,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type UserRole = 'super_admin' | 'teacher' | 'student';
 
+export type TargetAudience = 'grade_9' | 'bac_science' | 'bac_literary';
+
 export interface Profile {
   id: string;
   role: UserRole;
@@ -21,8 +23,43 @@ export interface Profile {
   religion_choice?: 'islamic' | 'christian';
   religion_prompt_shown: boolean;
   avatar_url?: string;
+  specialization?: 'grade_9' | 'bac_science' | 'bac_literary';
   created_at: string;
   updated_at: string;
+}
+
+export interface LessonPlan {
+  id: string;
+  subject_id: string | null;
+  teacher_id: string | null;
+  title_ar: string;
+  title_en: string;
+  description_ar: string | null;
+  total_minutes: 40 | 60;
+  target_audience: TargetAudience[];
+  is_published: boolean;
+  created_at: string;
+}
+
+export interface LessonSubtopic {
+  id: string;
+  plan_id: string;
+  order_index: number;
+  title_ar: string;
+  title_en: string;
+  duration_minutes: number;
+  content_ar: string;
+  content_en: string;
+  image_url: string | null;
+  created_at: string;
+}
+
+export interface StudentSubtopicProgress {
+  id: string;
+  student_id: string;
+  subtopic_id: string;
+  completed: boolean;
+  completed_at: string | null;
 }
 
 export interface Subject {
@@ -37,6 +74,7 @@ export interface Subject {
   icon: string;
   is_religion: boolean;
   is_active: boolean;
+  target_audience: TargetAudience[];
 }
 
 export interface Lesson {

@@ -68,7 +68,7 @@ function AppContent() {
         </div>
       </main>
 
-      <RoleSwitcher />
+      {profile.role !== 'student' && <RoleSwitcher />}
     </div>
   );
 }
