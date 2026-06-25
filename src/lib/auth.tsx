@@ -1,11 +1,50 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, Profile } from './supabase';
-import type { User } from '@supabase/supabase-js';
+import type { UserRole, Profile } from './supabase';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function detectRoleFromPath(): UserRole {
+  const path = window.location.pathname.toLowerCase();
+  if (path.includes('admin')) return 'super_admin';
+  if (path.includes('teacher')) return 'teacher';
+  return 'student';
+}
+
+function mockProfile(role: UserRole): Profile {
+  const names: Record<UserRole, string> = {
+    super_admin: 'Super Admin',
+    teacher: 'Ahmed Al-Rashid',
+    student: 'Sara Ibrahim',
+  };
+  const emails: Record<UserRole, string> = {
+    super_admin: 'admin@institute.edu',
+    teacher: 'teacher@institute.edu',
+    student: 'student@institute.edu',
+  };
+  return {
+    id: `mock-${role}`,
+    role,
+    full_name: names[role],
+    email: emails[role],
+    phone: '',
+    language: 'ar',
+    status: 'active',
+    religion_enabled: role === 'student',
+    religion_choice: 'islamic',
+    religion_prompt_shown: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// ─── Context ──────────────────────────────────────────────────────────────────
 
 interface AuthContextType {
-  user: User | null;
+  user: { id: string; email: string } | null;
   profile: Profile | null;
   loading: boolean;
+  role: UserRole;
+  setRole: (role: UserRole) => void;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -14,83 +53,78 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
-  async function loadProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!error && data) setProfile(data as Profile);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [role, setRoleState] = useState<UserRole>(detectRoleFromPath);
+  const [profile, setProfile] = useState<Profile>(mockProfile(role));
+
+  // When role changes, rebuild the mock profile
+  function setRole(newRole: UserRole) {
+    setRoleState(newRole);
+    setProfile(mockProfile(newRole));
+    // Update URL so refreshes preserve the role
+    const path =
+      newRole === 'super_admin' ? '/admin' :
+      newRole === 'teacher'     ? '/teacher' :
+                                  '/student';
+    window.history.replaceState(null, '', path);
   }
 
+  // Re-detect if user navigates via browser back/forward
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        (async () => {
-          await loadProfile(session.user.id);
-        })();
-      } else {
-        setProfile(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    function onPop() {
+      const detected = detectRoleFromPath();
+      setRoleState(detected);
+      setProfile(mockProfile(detected));
+    }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
+  const mockUser = { id: `mock-${role}`, email: profile.email };
+
+  // These are no-ops in mock mode but kept so callers compile
+  async function signIn(email: string, _password: string): Promise<{ error: string | null }> {
+    const lower = email.toLowerCase();
+    if (lower.includes('admin')) setRole('super_admin');
+    else if (lower.includes('teacher')) setRole('teacher');
+    else setRole('student');
     return { error: null };
   }
 
-  async function signUp(email: string, password: string, fullName: string, phone: string) {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message };
-    if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        email,
-        full_name: fullName,
-        phone,
-        role: 'student',
-        status: 'pending',
-        language: 'ar',
-      });
-      if (profileError) return { error: profileError.message };
-    }
+  async function signUp(_e: string, _p: string, fullName: string, _ph: string): Promise<{ error: string | null }> {
+    setRole('student');
+    setProfile(prev => ({ ...prev, full_name: fullName, status: 'pending' }));
     return { error: null };
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    setProfile(null);
+    setRole('student');
   }
 
   async function refreshProfile() {
-    if (user) await loadProfile(user.id);
+    setProfile(mockProfile(role));
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{
+      user: mockUser,
+      profile,
+      loading: false,
+      role,
+      setRole,
+      signIn,
+      signUp,
+      signOut,
+      refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
