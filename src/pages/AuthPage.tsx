@@ -27,9 +27,9 @@ export default function AuthPage() {
     setLoading(true);
 
     if (mode === 'login') {
-  const { error } = await signin(email, password);
-  if (error) setError(error);
+  window.location.href = '/admin';
 } else {
+
 
       const { error } = await signUp(email, password, fullName, phone);
       if (error) {
