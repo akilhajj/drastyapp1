@@ -37,6 +37,11 @@ function mockProfile(role: UserRole): Profile {
   };
 }
 
+/** Returns true for demo/mock profile IDs (e.g. "mock-student"). Used to skip real DB calls. */
+export function isMockId(id: string | null | undefined): boolean {
+  return !id || id.startsWith('mock-');
+}
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 interface AuthContextType {

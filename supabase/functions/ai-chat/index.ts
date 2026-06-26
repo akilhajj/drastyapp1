@@ -6,30 +6,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODEL = "meta-llama/llama-3-8b-instruct:free";
-const OPENROUTER_REFERER = Deno.env.get("SITE_URL") || "https://localhost:5173";
+const REFERER = Deno.env.get("SITE_URL") || "https://localhost:5173";
 
-function openRouterHeaders() {
-  return {
-    Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-    "HTTP-Referer": OPENROUTER_REFERER,
-    "Content-Type": "application/json",
-  };
+function systemPrompt(language: string): string {
+  return language === "ar"
+    ? "أنت مساعد تعليمي ذكي متخصص في المنهج السوري. أجب بشكل واضح ومبسط باللغة العربية."
+    : "You are a smart educational assistant for the Syrian curriculum. Answer clearly in English.";
 }
 
-function chatCompletionBody(language: string, userMessage: string) {
-  const systemPrompt = language === "ar"
-    ? `أنت مساعد تعليمي ذكي متخصص في المنهج السوري. أجب على أسئلة الطلاب بشكل واضح ومبسط باللغة العربية. تخصصاتك: العلوم، اللغة العربية، اللغة الفرنسية، الرياضيات، التربية الدينية. استخدم أمثلة بسيطة ومناسبة للطلاب.`
-    : `You are a smart educational assistant specializing in the Syrian national curriculum. Answer student questions clearly and simply in English. Specialties: Science, Arabic Language, French Language, Mathematics, Religious Education. Use simple examples appropriate for students.`;
-
+function buildBody(language: string, userMessage: string): string {
   return JSON.stringify({
     model: OPENROUTER_MODEL,
     messages: [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: systemPrompt(language) },
       { role: "user", content: userMessage },
     ],
     max_tokens: 600,
@@ -37,25 +31,33 @@ function chatCompletionBody(language: string, userMessage: string) {
   });
 }
 
-async function fetchOpenRouterChat(language: string, userMessage: string) {
-  const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+async function fetchOpenRouter(language: string, userMessage: string): Promise<string> {
+  const res = await fetch(OPENROUTER_URL, {
     method: "POST",
-    headers: openRouterHeaders(),
-    body: chatCompletionBody(language, userMessage),
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": REFERER,
+    },
+    body: buildBody(language, userMessage),
   });
 
-  const fallback = language === "ar"
-    ? "عذراً، لم أتمكن من معالجة سؤالك. يرجى المحاولة مرة أخرى."
-    : "Sorry, I couldn't process your question. Please try again.";
+  const rawText = await res.text();
+  console.log("OpenRouter raw response:", rawText.slice(0, 800));
 
   if (!res.ok) {
-    const text = await res.text();
-    console.error("OpenRouter error:", text);
-    return fallback;
+    console.error("OpenRouter HTTP", res.status, rawText);
+    return language === "ar"
+      ? "عذراً، لم أتمكن من معالجة سؤالك. يرجى المحاولة مرة أخرى."
+      : "Sorry, I couldn't process your question. Please try again.";
   }
 
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || fallback;
+  try {
+    const data = JSON.parse(rawText);
+    return data.choices?.[0]?.message?.content || rawText;
+  } catch {
+    return rawText;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -63,46 +65,45 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  const contentType = req.headers.get("content-type") || "";
+
   try {
-    const contentType = req.headers.get("content-type") || "";
-
-    // ── Voice mode: multipart form with audio file ──────────────────────────
+    // ── Voice mode: multipart/form-data ──────────────────────────────────────
     if (contentType.includes("multipart/form-data")) {
-      const formData = await req.formData();
-      const audioFile = formData.get("audio") as File;
-      const language = (formData.get("language") as string) || "ar";
+      const form = await req.formData();
+      const audio = form.get("audio") as File;
+      const language = (form.get("language") as string) || "ar";
 
-      if (!audioFile) {
+      if (!audio) {
         return new Response(
           JSON.stringify({ error: "No audio file provided" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Step 1: Transcribe with Whisper (OpenAI — OpenRouter has no audio API)
-      let transcribedText = "";
+      // 1. Transcribe with Whisper (OpenAI — OpenRouter has no audio API)
+      let transcribed = "";
       if (OPENAI_API_KEY) {
         const whisperForm = new FormData();
-        whisperForm.append("file", audioFile, "recording.webm");
+        whisperForm.append("file", audio, "recording.webm");
         whisperForm.append("model", "whisper-1");
         whisperForm.append("language", language === "ar" ? "ar" : "en");
 
-        const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        const wRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
           method: "POST",
           headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
           body: whisperForm,
         });
 
-        if (whisperRes.ok) {
-          const { text } = await whisperRes.json();
-          transcribedText = text;
+        if (wRes.ok) {
+          const { text } = await wRes.json();
+          transcribed = text;
         } else {
-          const err = await whisperRes.text();
-          console.error("Whisper error:", err);
+          console.error("Whisper error:", await wRes.text());
         }
       }
 
-      if (!transcribedText) {
+      if (!transcribed) {
         return new Response(
           JSON.stringify({
             response: language === "ar"
@@ -114,16 +115,12 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Step 2: AI response via OpenRouter
-      const aiText = OPENROUTER_API_KEY
-        ? await fetchOpenRouterChat(language, transcribedText)
-        : (language === "ar"
-            ? "شكراً على سؤالك. أنا مساعدك الذكي للمنهج السوري. لتفعيل الإجابات الكاملة، يرجى إضافة مفتاح OpenRouter API."
-            : "Thank you for your question. I'm your AI tutor for the Syrian curriculum. To enable full AI responses, please add your OpenRouter API key.");
+      // 2. AI response via OpenRouter
+      const aiText = await fetchOpenRouter(language, transcribed);
 
-      // Step 3: TTS via OpenAI (OpenRouter has no speech API)
+      // 3. TTS via OpenAI (OpenRouter has no speech API)
       let audioBase64: string | null = null;
-      if (OPENAI_API_KEY && aiText) {
+      if (OPENAI_API_KEY) {
         const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
           method: "POST",
           headers: {
@@ -139,54 +136,42 @@ Deno.serve(async (req: Request) => {
         });
 
         if (ttsRes.ok) {
-          const audioBuffer = await ttsRes.arrayBuffer();
-          const uint8 = new Uint8Array(audioBuffer);
+          const buf = await ttsRes.arrayBuffer();
+          const u8 = new Uint8Array(buf);
           let binary = "";
-          for (let i = 0; i < uint8.byteLength; i++) {
-            binary += String.fromCharCode(uint8[i]);
-          }
+          for (let i = 0; i < u8.byteLength; i++) binary += String.fromCharCode(u8[i]);
           audioBase64 = btoa(binary);
         } else {
-          const err = await ttsRes.text();
-          console.error("TTS error:", err);
+          console.error("TTS error:", await ttsRes.text());
         }
       }
 
       return new Response(
-        JSON.stringify({ response: aiText, transcription: transcribedText, audio: audioBase64 }),
+        JSON.stringify({ response: aiText, transcription: transcribed, audio: audioBase64 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // ── Text mode: JSON body ───────────────────────────────────────────────
+    // ── Text mode: JSON body ─────────────────────────────────────────────────
     const body = await req.json();
     const { message, language = "ar" } = body;
 
-    if (!message) {
+    if (!message || typeof message !== "string") {
       return new Response(
         JSON.stringify({ error: "No message provided" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (!OPENROUTER_API_KEY) {
-      const fallback = language === "ar"
-        ? `شكراً على سؤالك: "${message}". أنا مساعدك الذكي للمنهج السوري. لتفعيل الإجابات الكاملة، يرجى إضافة مفتاح OpenRouter API.`
-        : `Thank you for your question: "${message}". I'm your AI tutor for the Syrian curriculum. To enable full AI responses, please add your OpenRouter API key.`;
-      return new Response(
-        JSON.stringify({ response: fallback }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const aiResponse = await fetchOpenRouterChat(language, message);
+    const response = await fetchOpenRouter(language, message);
 
     return new Response(
-      JSON.stringify({ response: aiResponse }),
+      JSON.stringify({ response }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (err) {
+    console.error("Edge function error:", err);
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
