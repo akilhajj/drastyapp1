@@ -32,33 +32,38 @@ function buildBody(language: string, userMessage: string): string {
   });
 }
 
-async function fetchOpenRouter(language: string, userMessage: string): Promise<string> {
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": REFERER,
-      "X-Title": APP_TITLE,
-    },
-    body: buildBody(language, userMessage),
-  });
-
-  const rawText = await res.text();
-  console.log("OpenRouter raw response:", rawText.slice(0, 800));
-
-  if (!res.ok) {
-    console.error("OpenRouter HTTP", res.status, rawText);
-    return language === "ar"
-      ? "عذراً، لم أتمكن من معالجة سؤالك. يرجى المحاولة مرة أخرى."
-      : "Sorry, I couldn't process your question. Please try again.";
-  }
-
+async function fetchOpenRouter(language: string, userMessage: string): Promise<{ text: string; isError: boolean }> {
   try {
-    const data = JSON.parse(rawText);
-    return data.choices?.[0]?.message?.content || rawText;
-  } catch {
-    return rawText;
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": REFERER,
+        "X-Title": APP_TITLE,
+      },
+      body: buildBody(language, userMessage),
+    });
+
+    const rawText = await res.text();
+    console.log("OpenRouter raw response:", rawText.slice(0, 1000));
+
+    if (!res.ok) {
+      console.error("OpenRouter HTTP", res.status, rawText);
+      return { text: `OpenRouter Error (${res.status}): ${rawText}`, isError: true };
+    }
+
+    try {
+      const data = JSON.parse(rawText);
+      const content = data.choices?.[0]?.message?.content;
+      if (content) return { text: content, isError: false };
+      return { text: `OpenRouter unexpected response: ${rawText}`, isError: true };
+    } catch {
+      return { text: `OpenRouter non-JSON response: ${rawText}`, isError: true };
+    }
+  } catch (err) {
+    console.error("OpenRouter fetch error:", err);
+    return { text: `OpenRouter fetch exception: ${err.message}`, isError: true };
   }
 }
 
@@ -118,11 +123,11 @@ Deno.serve(async (req: Request) => {
       }
 
       // 2. AI response via OpenRouter
-      const aiText = await fetchOpenRouter(language, transcribed);
+      const aiResult = await fetchOpenRouter(language, transcribed);
 
       // 3. TTS via OpenAI (OpenRouter has no speech API)
       let audioBase64: string | null = null;
-      if (OPENAI_API_KEY) {
+      if (OPENAI_API_KEY && !aiResult.isError) {
         const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
           method: "POST",
           headers: {
@@ -131,7 +136,7 @@ Deno.serve(async (req: Request) => {
           },
           body: JSON.stringify({
             model: "tts-1",
-            input: aiText,
+            input: aiResult.text,
             voice: language === "ar" ? "onyx" : "nova",
             response_format: "mp3",
           }),
@@ -149,7 +154,7 @@ Deno.serve(async (req: Request) => {
       }
 
       return new Response(
-        JSON.stringify({ response: aiText, transcription: transcribed, audio: audioBase64 }),
+        JSON.stringify({ response: aiResult.text, transcription: transcribed, audio: audioBase64 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -165,10 +170,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const response = await fetchOpenRouter(language, message);
+    const aiResult = await fetchOpenRouter(language, message);
 
     return new Response(
-      JSON.stringify({ response }),
+      JSON.stringify({ response: aiResult.text }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

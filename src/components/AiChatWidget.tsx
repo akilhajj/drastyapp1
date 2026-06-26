@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLang } from '../lib/lang';
-import { useAuth, isMockId } from '../lib/auth';
+import { useAuth } from '../lib/auth';
 import { Send, Mic, MicOff, X, Volume2, Ticket, Bot, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Message {
@@ -64,15 +64,7 @@ export default function AiChatWidget({ onOpenTicket }: AiChatProps) {
 
       setMessages(prev => [...prev, { role: 'ai', content: aiText, mode: 'text' }]);
 
-      if (!isMockId(user?.id)) {
-        await supabase.from('ai_chat_logs').insert({
-          student_id: user?.id,
-          mode: 'text',
-          user_message: userMsg,
-          ai_response: aiText,
-          language: lang,
-        });
-      }
+      // DB logging disabled for debugging
     } catch {
       setMessages(prev => [...prev, {
         role: 'ai',
@@ -140,15 +132,7 @@ export default function AiChatWidget({ onOpenTicket }: AiChatProps) {
         audioRef.current.play();
       }
 
-      if (!isMockId(user?.id)) {
-        await supabase.from('ai_chat_logs').insert({
-          student_id: user?.id,
-          mode: 'voice',
-          user_message: lang === 'ar' ? 'رسالة صوتية' : 'Voice message',
-          ai_response: aiText,
-          language: lang,
-        });
-      }
+      // DB logging disabled for debugging
     } catch {
       setMessages(prev => [...prev, {
         role: 'ai',
