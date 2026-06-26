@@ -11,7 +11,8 @@ const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODEL = "meta-llama/llama-3-8b-instruct:free";
-const REFERER = Deno.env.get("SITE_URL") || "https://localhost:5173";
+const REFERER = "https://localhost:3000";
+const APP_TITLE = "BoltApp";
 
 function systemPrompt(language: string): string {
   return language === "ar"
@@ -38,6 +39,7 @@ async function fetchOpenRouter(language: string, userMessage: string): Promise<s
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
       "HTTP-Referer": REFERER,
+      "X-Title": APP_TITLE,
     },
     body: buildBody(language, userMessage),
   });
