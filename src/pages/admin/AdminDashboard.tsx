@@ -52,6 +52,20 @@ const SPEC_LABEL: Record<string, { ar: string; en: string }> = {
   bac_literary: { ar: 'بكالوريا أدبي', en: 'Bac Lit' },
 };
 
+const COUNTRY_LABEL: Record<string, { ar: string; en: string }> = {
+  syria:  { ar: 'سوريا',      en: 'Syria' },
+  ksa:    { ar: 'السعودية',   en: 'Saudi Arabia' },
+  uae:    { ar: 'الإمارات',  en: 'UAE' },
+  iraq:   { ar: 'العراق',     en: 'Iraq' },
+  nigeria:{ ar: 'نيجيريا',    en: 'Nigeria' },
+};
+
+const CATEGORY_LABEL: Record<string, { ar: string; en: string }> = {
+  high_school:  { ar: 'الثانوية',  en: 'High School' },
+  middle_school:{ ar: 'المتوسطة',  en: 'Middle School' },
+  primary:      { ar: 'الابتدائية', en: 'Primary School' },
+};
+
 // ─── Overview ────────────────────────────────────────────────────────────────
 function AdminOverview() {
   const { t } = useLang();
@@ -227,14 +241,14 @@ function AdminStudents() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/10">
-                {[t('fullName'), t('email'), t('specialization'), t('status'), t('enableReligion'), t('actions')].map(h => (
+                {[t('fullName'), t('email'), t('country'), t('academicLevel'), t('specialization'), t('status'), t('enableReligion'), t('actions')].map(h => (
                   <th key={h} className="text-start py-3 px-4 text-white/50 text-xs font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading
-                ? [...Array(5)].map((_, i) => <tr key={i} className="border-b border-white/5">{[...Array(6)].map((_, j) => <td key={j} className="py-3 px-4"><div className="h-5 shimmer-bg rounded" /></td>)}</tr>)
+                ? [...Array(5)].map((_, i) => <tr key={i} className="border-b border-white/5">{[...Array(8)].map((_, j) => <td key={j} className="py-3 px-4"><div className="h-5 shimmer-bg rounded" /></td>)}</tr>)
                 : students.length === 0
                   ? <tr><td colSpan={6} className="text-center py-10 text-white/30">{t('noData')}</td></tr>
                   : students.map(s => (
@@ -246,6 +260,12 @@ function AdminStudents() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-white/60 text-sm">{s.email}</td>
+                        <td className="py-3 px-4 text-xs text-white/70">
+                          {s.selected_country ? (lang === 'ar' ? COUNTRY_LABEL[s.selected_country]?.ar : COUNTRY_LABEL[s.selected_country]?.en) : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-white/70">
+                          {s.grade_track || (s.specialization && (lang === 'ar' ? SPEC_LABEL[s.specialization]?.ar : SPEC_LABEL[s.specialization]?.en)) || '-'}
+                        </td>
                         <td className="py-3 px-4">
                           {s.specialization && <span className="badge badge-info text-xs">{lang === 'ar' ? SPEC_LABEL[s.specialization]?.ar : SPEC_LABEL[s.specialization]?.en}</span>}
                         </td>
@@ -312,16 +332,16 @@ function AdminTeachers() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/10">
-                {[t('fullName'), t('email'), t('totalOpened'), t('totalClosed')].map(h => (
+                {[t('fullName'), t('email'), t('certifiedCurriculums'), t('totalOpened'), t('totalClosed')].map(h => (
                   <th key={h} className="text-start py-3 px-4 text-white/50 text-xs font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading
-                ? [...Array(3)].map((_, i) => <tr key={i} className="border-b border-white/5">{[...Array(4)].map((_, j) => <td key={j} className="py-3 px-4"><div className="h-5 shimmer-bg rounded" /></td>)}</tr>)
+                ? [...Array(3)].map((_, i) => <tr key={i} className="border-b border-white/5">{[...Array(5)].map((_, j) => <td key={j} className="py-3 px-4"><div className="h-5 shimmer-bg rounded" /></td>)}</tr>)
                 : teachers.length === 0
-                  ? <tr><td colSpan={4} className="text-center py-10 text-white/30">{t('noData')}</td></tr>
+                  ? <tr><td colSpan={5} className="text-center py-10 text-white/30">{t('noData')}</td></tr>
                   : teachers.map(tc => (
                       <tr key={tc.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
                         <td className="py-3 px-4">
@@ -331,6 +351,18 @@ function AdminTeachers() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-white/60 text-sm">{tc.email}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap gap-1">
+                            {tc.certified_curriculums?.length
+                              ? tc.certified_curriculums.map(c => (
+                                  <span key={c} className="text-[10px] text-white/60 bg-white/10 px-1.5 py-0.5 rounded-full">
+                                    {lang === 'ar' ? COUNTRY_LABEL[c]?.ar : COUNTRY_LABEL[c]?.en || c}
+                                  </span>
+                                ))
+                              : <span className="text-white/30 text-xs">-</span>
+                            }
+                          </div>
+                        </td>
                         <td className="py-3 px-4"><span className="badge badge-warning">{stats[tc.id]?.opened ?? 0}</span></td>
                         <td className="py-3 px-4"><span className="badge badge-success">{stats[tc.id]?.closed ?? 0}</span></td>
                       </tr>
@@ -345,12 +377,29 @@ function AdminTeachers() {
 }
 
 // ─── Curriculum PDFs ──────────────────────────────────────────────────────────
+const COUNTRY_LIST_ADMIN: { value: string; label: string }[] = [
+  { value: 'syria', label: 'syria' },
+  { value: 'ksa', label: 'ksa' },
+  { value: 'uae', label: 'uae' },
+  { value: 'iraq', label: 'iraq' },
+  { value: 'nigeria', label: 'nigeria' },
+];
+
+const CATEGORY_LIST: { value: string; label: string }[] = [
+  { value: 'high_school', label: 'highSchool' },
+  { value: 'middle_school', label: 'middleSchool' },
+  { value: 'primary', label: 'primarySchool' },
+];
+
 function AdminCurriculum() {
   const { t, lang } = useLang();
   const { user } = useAuth();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [pdfs, setPdfs] = useState<CurriculumPdf[]>([]);
-  const [form, setForm] = useState({ subject_id: '', title_ar: '', title_en: '', file_url: '', version: '' });
+  const [form, setForm] = useState({
+    subject_id: '', title_ar: '', title_en: '', file_url: '', version: '',
+    country: '', category: '', grade: '',
+  });
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -360,12 +409,22 @@ function AdminCurriculum() {
   }, []);
 
   async function save() {
-    if (!form.subject_id || !form.title_ar || !form.file_url) return;
+    if (!form.subject_id || !form.title_ar || !form.file_url || !form.country || !form.category || !form.grade) return;
     setSaving(true);
-    await supabase.from('curriculum_pdfs').insert({ ...form, uploaded_by: user?.id });
+    await supabase.from('curriculum_pdfs').insert({
+      subject_id: form.subject_id,
+      title_ar: form.title_ar,
+      title_en: form.title_en,
+      file_url: form.file_url,
+      version: form.version,
+      country: form.country,
+      category: form.category,
+      grade: form.grade,
+      uploaded_by: user?.id,
+    });
     const { data } = await supabase.from('curriculum_pdfs').select('*').order('created_at', { ascending: false });
     setPdfs(data || []);
-    setForm({ subject_id: '', title_ar: '', title_en: '', file_url: '', version: '' });
+    setForm({ subject_id: '', title_ar: '', title_en: '', file_url: '', version: '', country: '', category: '', grade: '' });
     setAdding(false);
     setSaving(false);
   }
@@ -382,8 +441,26 @@ function AdminCurriculum() {
         <div className="glass-card p-5 animate-slide-up space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
+              <label className="text-white/50 text-sm mb-1 block">{t('country')} <span className="text-red-400">*</span></label>
+              <select value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} className="input-field" required>
+                <option value="">{lang === 'ar' ? '-- اختر الدولة --' : '-- Select Country --'}</option>
+                {COUNTRY_LIST_ADMIN.map(c => <option key={c.value} value={c.value}>{t(c.label as any)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-white/50 text-sm mb-1 block">{t('category')} <span className="text-red-400">*</span></label>
+              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="input-field" required>
+                <option value="">{lang === 'ar' ? '-- اختر الفئة --' : '-- Select Category --'}</option>
+                {CATEGORY_LIST.map(c => <option key={c.value} value={c.value}>{t(c.label as any)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-white/50 text-sm mb-1 block">{t('grade')} <span className="text-red-400">*</span></label>
+              <input value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })} className="input-field" placeholder={lang === 'ar' ? 'مثال: 9, 12, 3...' : 'e.g. 9, 12, 3...'} required />
+            </div>
+            <div>
               <label className="text-white/50 text-sm mb-1 block">{t('subjects')}</label>
-              <select value={form.subject_id} onChange={e => setForm({ ...form, subject_id: e.target.value })} className="input-field">
+              <select value={form.subject_id} onChange={e => setForm({ ...form, subject_id: e.target.value })} className="input-field" required>
                 <option value="">{lang === 'ar' ? '-- اختر --' : '-- Select --'}</option>
                 {subjects.map(s => <option key={s.id} value={s.id}>{lang === 'ar' ? s.name_ar : s.name_en}</option>)}
               </select>
@@ -394,15 +471,15 @@ function AdminCurriculum() {
             </div>
             <div>
               <label className="text-white/50 text-sm mb-1 block">{lang === 'ar' ? 'العنوان (عربي)' : 'Title (AR)'}</label>
-              <input value={form.title_ar} onChange={e => setForm({ ...form, title_ar: e.target.value })} className="input-field" />
+              <input value={form.title_ar} onChange={e => setForm({ ...form, title_ar: e.target.value })} className="input-field" required />
             </div>
             <div>
               <label className="text-white/50 text-sm mb-1 block">{lang === 'ar' ? 'العنوان (إنجليزي)' : 'Title (EN)'}</label>
               <input value={form.title_en} onChange={e => setForm({ ...form, title_en: e.target.value })} className="input-field" />
             </div>
             <div className="sm:col-span-2">
-              <label className="text-white/50 text-sm mb-1 block">PDF URL</label>
-              <input value={form.file_url} onChange={e => setForm({ ...form, file_url: e.target.value })} className="input-field" placeholder="https://..." />
+              <label className="text-white/50 text-sm mb-1 block">PDF URL <span className="text-red-400">*</span></label>
+              <input value={form.file_url} onChange={e => setForm({ ...form, file_url: e.target.value })} className="input-field" placeholder="https://..." required />
             </div>
           </div>
           <div className="flex gap-2">
@@ -415,17 +492,24 @@ function AdminCurriculum() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-white/10">
-              {[t('subjects'), lang === 'ar' ? 'العنوان' : 'Title', lang === 'ar' ? 'الإصدار' : 'Version', t('actions')].map(h => (
+              {[t('country'), t('category'), t('grade'), t('subjects'), lang === 'ar' ? 'العنوان' : 'Title', lang === 'ar' ? 'الإصدار' : 'Version', t('actions')].map(h => (
                 <th key={h} className="text-start py-3 px-4 text-white/50 text-xs font-medium">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {pdfs.length === 0
-              ? <tr><td colSpan={4} className="text-center py-10 text-white/30">{t('noData')}</td></tr>
+              ? <tr><td colSpan={7} className="text-center py-10 text-white/30">{t('noData')}</td></tr>
               : pdfs.map(pdf => (
                   <tr key={pdf.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                    <td className="py-3 px-4 text-sm text-white/70">{subName(pdf.subject_id)}</td>
+                    <td className="py-3 px-4 text-xs text-white/70">
+                      {pdf.country && (lang === 'ar' ? COUNTRY_LABEL[pdf.country]?.ar : COUNTRY_LABEL[pdf.country]?.en) || pdf.country || '-'}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-white/70">
+                      {pdf.category && (lang === 'ar' ? CATEGORY_LABEL[pdf.category]?.ar : CATEGORY_LABEL[pdf.category]?.en) || pdf.category || '-'}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-white/70">{pdf.grade || '-'}</td>
+                    <td className="py-3 px-4 text-xs text-white/70">{subName(pdf.subject_id)}</td>
                     <td className="py-3 px-4 text-sm text-white">{lang === 'ar' ? pdf.title_ar : pdf.title_en}</td>
                     <td className="py-3 px-4"><span className="badge badge-info">{pdf.version || 'N/A'}</span></td>
                     <td className="py-3 px-4">

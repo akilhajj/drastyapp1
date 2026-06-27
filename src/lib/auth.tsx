@@ -51,7 +51,7 @@ interface AuthContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string, phone: string, specialization?: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName: string, phone: string, meta?: Record<string, any>) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -98,9 +98,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   }
 
-  async function signUp(_e: string, _p: string, fullName: string, _ph: string, specialization?: string): Promise<{ error: string | null }> {
-    setRole('student');
-    setProfile(prev => ({ ...prev, full_name: fullName, status: 'pending', specialization: specialization as any }));
+  async function signUp(_e: string, _p: string, fullName: string, _ph: string, meta?: Record<string, any>): Promise<{ error: string | null }> {
+    const userType = meta?.userType as 'student' | 'teacher' || 'student';
+    const targetRole: UserRole = userType === 'teacher' ? 'teacher' : 'student';
+    setRole(targetRole);
+    setProfile(prev => ({
+      ...prev,
+      full_name: fullName,
+      status: 'pending',
+      specialization: meta?.specialization,
+      selected_country: meta?.country,
+      grade_track: meta?.gradeTrack,
+      certified_curriculums: meta?.certifiedCurriculums,
+      phone_number: _ph,
+    }));
     return { error: null };
   }
 

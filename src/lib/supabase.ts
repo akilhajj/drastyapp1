@@ -7,6 +7,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type UserRole = 'super_admin' | 'teacher' | 'student';
 
+export type Country = 'syria' | 'ksa' | 'uae' | 'iraq' | 'nigeria';
+
+export type CurriculumCategory = 'high_school' | 'middle_school' | 'primary';
+
 export type TargetAudience = 'grade_9' | 'bac_science' | 'bac_literary';
 
 export interface Profile {
@@ -15,6 +19,7 @@ export interface Profile {
   full_name: string;
   email: string;
   phone?: string;
+  phone_number?: string;
   language: 'ar' | 'en';
   status: 'pending' | 'active' | 'rejected';
   payment_receipt_url?: string;
@@ -24,6 +29,9 @@ export interface Profile {
   religion_prompt_shown: boolean;
   avatar_url?: string;
   specialization?: 'grade_9' | 'bac_science' | 'bac_literary';
+  selected_country?: Country;
+  grade_track?: string;
+  certified_curriculums?: Country[];
   created_at: string;
   updated_at: string;
 }
@@ -167,6 +175,9 @@ export interface CurriculumPdf {
   file_url: string;
   file_size_kb?: number;
   version?: string;
+  country?: string;
+  category?: string;
+  grade?: string;
   is_active: boolean;
   created_at: string;
 }
