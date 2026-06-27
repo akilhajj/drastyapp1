@@ -6,6 +6,7 @@ import StudentDashboard from './components/student/StudentDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import TeacherDashboard from './components/teacher/TeacherDashboard';
 
+
 function AppContent() {
   const { profile, loading } = useAuth();
 
