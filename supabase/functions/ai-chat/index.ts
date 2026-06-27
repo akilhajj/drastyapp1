@@ -10,7 +10,7 @@ const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODEL = "meta-llama/llama-3-8b-instruct:free";
+const OPENROUTER_MODEL = "openrouter/free";
 const REFERER = "https://localhost:3000";
 const APP_TITLE = "BoltApp";
 
