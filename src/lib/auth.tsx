@@ -61,8 +61,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRoleState] = useState<UserRole>(detectRoleFromPath);
-  const [profile, setProfile] = useState<Profile>(mockProfile(role));
+ const [role, setRoleState] = useState<UserRole | null>(null);
+const [profile, setProfile] = useState<Profile | null>(null);
 
   // When role changes, rebuild the mock profile
   function setRole(newRole: UserRole) {
