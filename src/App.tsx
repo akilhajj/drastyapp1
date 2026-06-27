@@ -2,14 +2,14 @@ import React from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { LangProvider } from './lib/lang';
 import AuthPage from './pages/AuthPage';
-import StudentDashboard from './pages/StudentDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import TeacherDashboard from './pages/TeacherDashboard';
+import StudentDashboard from './pages/student/StudentDashboard';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
 function AppContent() {
   const { profile, loading } = useAuth();
 
-  // 1. شاشة تحميل لمنع الانهيار والشاشة السوداء
+  // 1. شاشة تحميل لمنع الانهيار
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
