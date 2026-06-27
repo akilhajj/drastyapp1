@@ -2,9 +2,9 @@ import React from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { LangProvider } from './lib/lang';
 import AuthPage from './pages/AuthPage';
-import StudentDashboard from './pages/student/StudentDashboard';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import TeacherDashboard from './pages/teacher/TeacherDashboard';
+import StudentDashboard from './components/student/StudentDashboard';
+import AdminDashboard from './components/admin/AdminDashboard';
+import TeacherDashboard from './components/teacher/TeacherDashboard';
 
 function AppContent() {
   const { profile, loading } = useAuth();
