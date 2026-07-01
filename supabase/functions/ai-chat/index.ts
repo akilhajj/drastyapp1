@@ -1,159 +1,185 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// COST-OPTIMIZED AI TUTOR EDGE FUNCTION
+// Ultra-budget friendly configuration for OpenRouter API calls
+// ─────────────────────────────────────────────────────────────────────────────
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+// API Keys
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 
+// ─── COST CONTROL: Ultra-low cost model priority ─────────────────────────────
+// Priority: Free tier > Ultra-cheap > Standard
+const COST_OPTIMIZED_MODELS = [
+  "meta-llama/llama-3-8b-instruct:free",     // FREE - Primary choice
+  "google/gemini-flash-1.5-8b",               // Ultra cheap backup
+  "qwen/qwen-2-7b-instruct:free",            // FREE alternative
+  "openrouter/auto",                          // Fallback automatic
+];
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODEL = "openrouter/free";
 const REFERER = "https://drastyapp.edu";
-const APP_TITLE = "DrastyApp - Sovereign School Platform";
+const APP_TITLE = "DrastyApp - Cost-Optimized AI Tutor";
 
-function compassionateTutorSystemPrompt(language: string): string {
+// ─── COST CONTROL: Hard token limits ────────────────────────────────────────
+const MAX_TOKENS = 250;        // Strict limit for responses
+const MAX_CONTEXT_MESSAGES = 4; // Sliding window: only last 4 messages
+
+// ─── COMPASSIONATE TUTOR SYSTEM PROMPT (Brief for token savings) ─────────────
+function tutorSystemPrompt(language: string): string {
   if (language === "ar") {
-    return `أنت مدرس خصوصي حنون ومشجع للغاية في منصة drastyapp التعليمية. مهمتك هي تبسيط المفاهيم المعقدة ورسم الخرائط الذهنية وتعليم الطالب بناءً فقط على الدروس المرفوعة يدويًا (النصوص، صور السبورات، أو التسجيلات الصوتية) من معلمي مدرسته.
+    return `أنت معلم خصوصي حنون ومشجع. قاعدتك الذهبية:
 
-## القواعد الذهبية:
+1. أبداً لا تقل "خطأ" أو "إجابة خاطئة". قل: "محاولة رائعة يا قمر! لننظر معاً..."
+2. قدم الخيارات (أ، ب، ج، د) عند الشرح.
+3. أجب باختصار شديد (أقل من 80 كلمة).
 
-1. **التعليم المبسط**: اشرح كل مفهوم بطريقة سهلة وممتعة، استخدم الأمثلة من الحياة اليومية، وقدم المعلومات على شكل خطوات واضحة.
-
-2. **الاختيار المتعدد التفاعلي**: عند تقديم تعريفات أو اختبار الطالب، قدم خيارات متعددة (أ، ب، ج، د) بطريقة تفاعلية وممتعة. انتظر إجابة الطالب قبل المتابعة.
-
-3. **التشجيع العاطفي العميق - هذا هو الأهم!**:
-   - إذا أجاب الطالب بشكل خاطئ، NEVER تقول "إجابة خاطئة" أو "خطأ" أو "غير صحيح" مباشرة!
-   - بدلاً من ذلك، قل عبارات لطيفة ومحببة مثل:
-     • "محاولة رائعة يا قلبي! دعنا ننظر معاً أكثر..."
-     • "جميل جداً يا صغيري! أنت تقترب كثيراً، ما رأيك لو..."
-     • "يا له من جهد جميل! تعال نستكشف معاً..."
-     • "أحسنت المحاولة يا بطلي! تذكر عندما ذكر معلمك..."
-   - ثم وجهه برفق للوصول للإجابة الصحيحة بنفسه، مثل: "حاول أن تتذكر ما قلناه عن... هل يمكنك إيجاد الرابط؟"
-
-4. **الصبر اللانهائي**: كن صبوراً جداً، لا تتضايق أبداً من تكرار الأسئلة، استخدم تشبيهات مختلفة في كل مرة حتى يفهم.
-
-5. **الإشادة المستمرة**: امتدح كل محاولة وطالب عليها، حتى لو لم تكن الإجابة صحيحة تماماً. استخدم عبارات مثل "أنت رائع!" و "عقلك يعمل بشكل ممتاز!" و "أنا فخور جداً بك!" باستمرار.
-
-6. **التخصيص**: استخدم ألقاب محببة وعائلية مثل "يا قمر"، "يا غالي"، "يا صغيري"، "يا بطول" بشكل طبيعي وعفوي.
-
-7. **المرح والإثارة**: أضف عنصر من المرح والتحدي، مثل: "هل أنت مستعد للمغامرة التالية؟" أو "يا للروعة! لنكتشف المزيد!"
-
-## محظورات صارمة:
-- لا تقول أبداً: "خطأ"، "إجابة خاطئة"، "غير صحيح"، "للأسف"، "للأسف الشديد"
-- لا تضع إنذارات أو تشاؤم
-- لا تتسرع في إعطاء الإجابة
-- لا تنتقد أو توبخ بأي شكل
-
-## أمثلة على الردود:
-- عند إجابة صحيحة: "يا له من عبقرية! أنت نجم حقيقي! 🌟 هل ترى كيف استخدمت القاعدة ببراعة؟"
-- عند إجابة خاطئة: "المحاولة جميلة جداً يا قلبي! 🌸 تعال ننظر معاً بهدوء... هل تتذكر عندما تحدثنا عن...؟"
-- عند سؤال صعب: "سؤال ممتاز يا ذكي! هذا يبين أنك تفكر بعمق! هيا نكتشف الإجابة معاً خطوة بخطوة..."
-
-أنت لست مجرد مساعد ذكاء اصطناعي - أنت صديق حنون ومعلم مفعم بالحب والصبر والتفاؤل!`;
+كن صبوراً ومحباً دائماً!`;
   }
+  return `You are a compassionate private tutor. Golden rules:
 
-  return `You are the official Compassionate AI Private Tutor of the drastyapp platform. Your job is to simplify complex concepts, map formulas, and teach the student based ONLY on the manually uploaded text, image logs, or voice transcripts sent by their school teacher.
+1. NEVER say "wrong" or "incorrect". Say: "Wonderful try, dear! Let's look closer..."
+2. Present options (A, B, C, D) when explaining.
+3. Keep responses under 80 words to save tokens.
 
-## GOLDEN RULES:
-
-1. **Simplified Teaching**: Explain every concept in an easy, enjoyable way. Use examples from daily life. Present information as clear steps.
-
-2. **Interactive Multiple Choice**: When presenting definitions or testing students, present multiple-choice options (A, B, C, D) interactively and enjoyably. Wait for the student's answer before proceeding.
-
-3. **Deep Emotional Reinforcement - THIS IS CRITICAL!**:
-   - If a student submits a wrong answer, NEVER say "Wrong answer", "Incorrect", "Not correct" directly!
-   - Instead, say gentle, deeply affectionate phrases like:
-     • "A wonderful try, sweetie! Let's look closer together..."
-     • "That's lovely, my dear! You're so close! What if we..."
-     • "What a beautiful effort! Let's explore together..."
-     • "Great attempt, champion! Remember when your teacher mentioned..."
-   - Then guide them softly to discover the correct answer themselves.
-
-4. **Infinite Patience**: Be extremely patient. Never show frustration from repeated questions. Use different analogies each time until understanding clicks.
-
-5. **Continuous Praise**: Praise every attempt. Even if not fully correct, acknowledge the effort with phrases like "You're amazing!", "Your mind works wonderfully!", "I'm so proud of you!" constantly.
-
-6. **Personalization**: Use warm, familial terms of endearment naturally like "my dear", "sweetheart", "champion", "star".
-
-7. **Fun & Excitement**: Add elements of fun and challenge: "Ready for the next adventure?" or "Wow! Let's discover more!"
-
-## STRICT PROHIBITIONS:
-- NEVER say: "Wrong", "Incorrect", "Not right", "Unfortunately", "Sadly"
-- NO warnings or pessimism
-- DON'T rush to give the answer
-- DON'T criticize or scold in ANY form
-
-## Response Examples:
-- Correct answer: "What brilliance! You're a true star! 🌟 See how you skillfully applied that rule?"
-- Wrong answer: "That's a beautiful try, sweetheart! 🌸 Let's look together calmly... Do you remember when we discussed...?"
-- Hard question: "Excellent question, smart one! This shows you're thinking deeply! Let's discover the answer together step by step..."
-
-You're not just an AI assistant - you're a warm friend and teacher filled with love, patience, and optimism!`;
+Always be patient and loving!`;
 }
 
-function buildBody(language: string, userMessage: string, lessonContext?: string): string {
-  const systemContent = compassionateTutorSystemPrompt(language);
-  const messages = [
-    { role: "system", content: systemContent },
-    { role: "user", content: userMessage },
+// ─── COST CONTROL: Sliding window message builder ─────────────────────────────
+function buildOptimizedMessages(
+  language: string,
+  currentMessage: string,
+  conversationHistory: Array<{ role: string; content: string }> = []
+): Array<{ role: string; content: string }> {
+  const systemPrompt = tutorSystemPrompt(language);
+
+  // Apply sliding window: only keep last N messages
+  const recentHistory = conversationHistory.slice(-MAX_CONTEXT_MESSAGES);
+
+  const messages: Array<{ role: string; content: string }> = [
+    { role: "system", content: systemPrompt },
+    ...recentHistory,
+    { role: "user", content: currentMessage },
   ];
 
-  // If there's lesson context, prepend it
-  if (lessonContext) {
-    messages.unshift({
-      role: "system",
-      content: language === "ar"
-        ? `سياق الدرس الحالي من معلمك:\n${lessonContext}`
-        : `Current lesson context from your teacher:\n${lessonContext}`,
-    });
-  }
-
-  return JSON.stringify({
-    model: OPENROUTER_MODEL,
-    messages,
-    max_tokens: 800,
-    temperature: 0.7,
-  });
+  return messages;
 }
 
-async function fetchOpenRouter(language: string, userMessage: string, lessonContext?: string): Promise<{ text: string; isError: boolean }> {
+// ─── COST CONTROL: Token counter (approximate) ────────────────────────────────
+function estimateTokens(text: string): number {
+  // Rough estimate: ~4 chars per token for English, ~2 for Arabic
+  return Math.ceil(text.length / 3);
+}
+
+// ─── COST CONTROL: OpenRouter API caller with retry and fallback ──────────────
+async function callOpenRouter(
+  language: string,
+  userMessage: string,
+  history: Array<{ role: string; content: string }> = []
+): Promise<{ text: string; isError: boolean; tokensUsed: number }> {
+
+  if (!OPENROUTER_API_KEY) {
+    return {
+      text: language === "ar"
+        ? "خدمة الذكاء الاصطناعي غير متوفرة حالياً."
+        : "AI service temporarily unavailable.",
+      isError: true,
+      tokensUsed: 0,
+    };
+  }
+
+  const messages = buildOptimizedMessages(language, userMessage, history);
+  const inputTokens = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+
+  // Try models in order of cost efficiency
+  for (const model of COST_OPTIMIZED_MODELS) {
+    try {
+      const res = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": REFERER,
+          "X-Title": APP_TITLE,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: MAX_TOKENS,
+          temperature: 0.7,
+          top_p: 0.9,
+          // Cost control: stop on excessive length
+          stop: language === "ar" ? ["\n\n\n", "##"] : ["\n\n\n", "##"],
+        }),
+      });
+
+      if (!res.ok) {
+        console.error(`Model ${model} failed:`, res.status);
+        continue; // Try next model
+      }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content;
+
+      if (content) {
+        const outputTokens = estimateTokens(content);
+        console.log(`[COST] Model: ${model} | Input: ~${inputTokens} | Output: ~${outputTokens}`);
+        return {
+          text: content.trim(),
+          isError: false,
+          tokensUsed: inputTokens + outputTokens,
+        };
+      }
+    } catch (err) {
+      console.error(`Model ${model} error:`, err);
+      continue;
+    }
+  }
+
+  // All models failed
+  return {
+    text: language === "ar"
+      ? "عذراً، حدث خطأ. حاول مرة أخرى."
+      : "Sorry, an error occurred. Please try again.",
+    isError: true,
+    tokensUsed: 0,
+  };
+}
+
+// ─── Voice transcription using OpenAI Whisper ─────────────────────────────────
+async function transcribeAudio(audioFile: File, language: string): Promise<string | null> {
+  if (!OPENAI_API_KEY) return null;
+
   try {
-    const res = await fetch(OPENROUTER_URL, {
+    const whisperForm = new FormData();
+    whisperForm.append("file", audioFile, "recording.webm");
+    whisperForm.append("model", "whisper-1");
+    whisperForm.append("language", language === "ar" ? "ar" : "en");
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": REFERER,
-        "X-Title": APP_TITLE,
-      },
-      body: buildBody(language, userMessage, lessonContext),
+      headers: { "Authorization": `Bearer ${OPENAI_API_KEY}` },
+      body: whisperForm,
     });
 
-    const rawText = await res.text();
-    console.log("OpenRouter raw response:", rawText.slice(0, 1000));
-
-    if (!res.ok) {
-      console.error("OpenRouter HTTP", res.status, rawText);
-      return { text: `OpenRouter Error (${res.status}): ${rawText}`, isError: true };
-    }
-
-    try {
-      const data = JSON.parse(rawText);
-      const content = data.choices?.[0]?.message?.content;
-      if (content) return { text: content, isError: false };
-      return { text: `OpenRouter unexpected response: ${rawText}`, isError: true };
-    } catch {
-      return { text: `OpenRouter non-JSON response: ${rawText}`, isError: true };
+    if (res.ok) {
+      const { text } = await res.json();
+      return text;
     }
   } catch (err) {
-    console.error("OpenRouter fetch error:", err);
-    return { text: `OpenRouter fetch exception: ${err.message}`, isError: true };
+    console.error("Whisper error:", err);
   }
+  return null;
 }
 
+// ─── MAIN HANDLER ────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -162,7 +188,7 @@ Deno.serve(async (req: Request) => {
   const contentType = req.headers.get("content-type") || "";
 
   try {
-    // Voice mode: multipart/form-data
+    // ─── VOICE MODE: multipart/form-data ────────────────────────────────────
     if (contentType.includes("multipart/form-data")) {
       const form = await req.formData();
       const audio = form.get("audio") as File;
@@ -170,85 +196,41 @@ Deno.serve(async (req: Request) => {
 
       if (!audio) {
         return new Response(
-          JSON.stringify({ error: "No audio file provided" }),
+          JSON.stringify({ error: "No audio file" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Transcribe with Whisper
-      let transcribed = "";
-      if (OPENAI_API_KEY) {
-        const whisperForm = new FormData();
-        whisperForm.append("file", audio, "recording.webm");
-        whisperForm.append("model", "whisper-1");
-        whisperForm.append("language", language === "ar" ? "ar" : "en");
-
-        const wRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-          body: whisperForm,
-        });
-
-        if (wRes.ok) {
-          const { text } = await wRes.json();
-          transcribed = text;
-        } else {
-          console.error("Whisper error:", await wRes.text());
-        }
-      }
+      // Transcribe
+      const transcribed = await transcribeAudio(audio, language);
 
       if (!transcribed) {
         return new Response(
           JSON.stringify({
             response: language === "ar"
-              ? "لم أتمكن من فهم التسجيل. حاول مرة أخرى يا قمر!"
-              : "I couldn't understand the recording. Please try again, dear!",
-            audio: null,
+              ? "لم أفهم التسجيل. حاول مرة أخرى يا قمر!"
+              : "Couldn't understand recording. Please try again, dear!",
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // AI response via OpenRouter
-      const aiResult = await fetchOpenRouter(language, transcribed);
-
-      // TTS via OpenAI
-      let audioBase64: string | null = null;
-      if (OPENAI_API_KEY && !aiResult.isError) {
-        const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "tts-1",
-            input: aiResult.text,
-            voice: language === "ar" ? "alloy" : "nova",
-            response_format: "mp3",
-          }),
-        });
-
-        if (ttsRes.ok) {
-          const buf = await ttsRes.arrayBuffer();
-          const u8 = new Uint8Array(buf);
-          let binary = "";
-          for (let i = 0; i < u8.byteLength; i++) binary += String.fromCharCode(u8[i]);
-          audioBase64 = btoa(binary);
-        } else {
-          console.error("TTS error:", await ttsRes.text());
-        }
-      }
+      // Get AI response (no history for voice - cost control)
+      const result = await callOpenRouter(language, transcribed);
 
       return new Response(
-        JSON.stringify({ response: aiResult.text, transcription: transcribed, audio: audioBase64 }),
+        JSON.stringify({
+          response: result.text,
+          transcription: transcribed,
+          tokensUsed: result.tokensUsed,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Text mode: JSON body
+    // ─── TEXT MODE: JSON body ────────────────────────────────────────────────
     const body = await req.json();
-    const { message, language = "ar", lessonContext } = body;
+    const { message, language = "ar", history = [] } = body;
 
     if (!message || typeof message !== "string") {
       return new Response(
@@ -257,10 +239,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const aiResult = await fetchOpenRouter(language, message, lessonContext);
+    // ⚠️ COST CONTROL: Filter out any image data from history
+    // Images should NEVER be sent to OpenRouter API
+    const sanitizedHistory = history.map((msg: any) => ({
+      role: msg.role,
+      content: typeof msg.content === "string"
+        ? msg.content.slice(0, 500) // Limit message length
+        : "[media]", // Replace non-text content
+    }));
+
+    const result = await callOpenRouter(language, message, sanitizedHistory);
 
     return new Response(
-      JSON.stringify({ response: aiResult.text }),
+      JSON.stringify({
+        response: result.text,
+        tokensUsed: result.tokensUsed,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

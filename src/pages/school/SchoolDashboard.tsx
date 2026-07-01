@@ -10,7 +10,7 @@ import HelpTicketModal from '../../components/HelpTicketModal';
 import {
   Users, BookOpen, Upload, BarChart3, Settings, Plus, Check, X, Eye, Trash2,
   RefreshCw, Mic, MicOff, Image, Play, Square, AlertCircle, School as SchoolIcon,
-  TrendingUp, UserPlus, FileText, Calendar, Volume2
+  TrendingUp, UserPlus, FileText, Calendar, Volume2, Zap
 } from 'lucide-react';
 
 const GRADE_LEVELS: { value: GradeLevel; ar: string; en: string }[] = [
@@ -690,14 +690,24 @@ function LessonUpload({ school }: { school: School | null }) {
           </div>
 
           {/* Media Upload Section */}
+          {/* ⚠️ COST CONTROL: Images/audio stored LOCALLY only, never sent to AI API */}
           <div className="glass-card p-4 space-y-4">
-            <h4 className="text-gold-400 font-bold">{lang === 'ar' ? 'الوسائط المرفقة' : 'Attached Media'}</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-gold-400 font-bold">{lang === 'ar' ? 'الوسائط المرفقة' : 'Attached Media'}</h4>
+              <span className="text-xs text-emerald-400 flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                {lang === 'ar' ? 'محفوظ محلياً فقط' : 'Saved locally only'}
+              </span>
+            </div>
 
             {/* Image Upload */}
             <div className="flex items-center gap-4">
               <label className="flex-1 flex items-center gap-3 glass-card p-4 cursor-pointer hover:border-gold-500/30 transition-colors">
                 <Image className="w-6 h-6 text-gold-400" />
-                <span className="text-white/60">{lang === 'ar' ? 'رفع صور (لوح السبورات، الدفاتر)' : 'Upload images (whiteboards, notebooks)'}</span>
+                <div className="flex-1">
+                  <span className="text-white/60">{lang === 'ar' ? 'رفع صور (لوح السبورات، الدفاتر)' : 'Upload images (whiteboards, notebooks)'}</span>
+                  <p className="text-emerald-400/60 text-xs mt-1">{lang === 'ar' ? '⚠️ لن تُرسل للذكاء الاصطناعي' : '⚠️ Not sent to AI API'}</p>
+                </div>
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
               </label>
             </div>

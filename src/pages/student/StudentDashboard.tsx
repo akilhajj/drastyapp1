@@ -337,7 +337,12 @@ function StudentLessons() {
   );
 }
 
-// ─── AI Tutor ─────────────────────────────────────────────────────────────────
+// ─── AI Tutor with COST-OPTIMIZED Sliding Window ───────────────────────────
+// ⚠️ COST CONTROL: Only sends last 4 messages to OpenRouter API
+// ⚠️ IMAGES: Never sent to API - stored and displayed locally only
+
+const MAX_HISTORY_MESSAGES = 4; // Sliding window size for token savings
+
 function StudentAiTutor() {
   const { lang } = useLang();
   const { profile } = useAuth();
@@ -346,6 +351,8 @@ function StudentAiTutor() {
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [mode, setMode] = useState<'text' | 'voice'>('text');
+  const [tokensUsed, setTokensUsed] = useState(0);
+  const [sessionCost, setSessionCost] = useState(0);
   const msgEndRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -367,13 +374,24 @@ function StudentAiTutor() {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
       const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+      // ⚠️ COST CONTROL: Build sliding window history (last N messages only)
+      const recentHistory = messages.slice(-MAX_HISTORY_MESSAGES).map(m => ({
+        role: m.role === 'ai' ? 'assistant' : 'user',
+        content: m.content,
+      }));
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: userMsg, language: lang }),
+        // Send only the sliding window history, not full conversation
+        body: JSON.stringify({
+          message: userMsg,
+          language: lang,
+          history: recentHistory,
+        }),
       });
 
       let aiText = lang === 'ar'
@@ -383,23 +401,27 @@ function StudentAiTutor() {
       if (response.ok) {
         const data = await response.json();
         if (data.response) aiText = data.response;
+        // Track tokens for cost monitoring
+        if (data.tokensUsed) {
+          setTokensUsed(prev => prev + data.tokensUsed);
+        }
       }
 
       setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
 
-      // Log to database
+      // Log to database (asynchronously, don't await)
       if (profile) {
-        await supabase.from('chat_messages').insert({
+        supabase.from('chat_messages').insert({
           student_id: profile.id,
           school_id: profile.school_id,
           user_message: userMsg,
           ai_response: aiText,
-        });
+        }).then();
       }
     } catch {
       setMessages(prev => [...prev, {
         role: 'ai',
-        content: lang === 'ar' ? 'حدث خطأ. حاول مرة أخرى يا قلبي!' : 'Something went wrong. Please try again, dear!',
+        content: lang === 'ar' ? 'حدث خطأ. حاول مرة أخرى يا قلبي!' : 'Something went away. Please try again, dear!',
       }]);
     }
     setLoading(false);
@@ -468,12 +490,29 @@ function StudentAiTutor() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gold-400">{lang === 'ar' ? 'المعلم الخصوصي الذكي' : 'AI Private Tutor'}</h1>
-        <button
-          onClick={() => setMode(mode === 'text' ? 'voice' : 'text')}
-          className={`p-2 rounded-xl ${mode === 'voice' ? 'bg-gold-500/20 text-gold-400' : 'glass text-white/60'}`}
-        >
-          {mode === 'voice' ? <Mic className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Token usage indicator - Cost control visibility */}
+          {tokensUsed > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs text-emerald-400">
+              <Zap className="w-3 h-3" />
+              ~{tokensUsed} tokens
+            </div>
+          )}
+          <button
+            onClick={() => setMode(mode === 'text' ? 'voice' : 'text')}
+            className={`p-2 rounded-xl ${mode === 'voice' ? 'bg-gold-500/20 text-gold-400' : 'glass text-white/60'}`}
+          >
+            {mode === 'voice' ? <Mic className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Cost-saving notice */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-300">
+        <Zap className="w-3.5 h-3.5" />
+        {lang === 'ar'
+          ? 'توفير التكاليف: يُرسل آخر 4 رسائل فقط للذكاء الاصطناعي'
+          : 'Cost-saving: Only last 4 messages sent to AI'}
       </div>
 
       {/* Chat container */}
