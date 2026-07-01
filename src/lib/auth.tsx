@@ -61,8 +61,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
- const [role, setRoleState] = useState<UserRole | null>(null);
-const [profile, setProfile] = useState<Profile | null>(null);
+  const [role, setRoleState] = useState<UserRole>(() => detectRoleFromPath());
+  const [profile, setProfile] = useState<Profile | null>(() => mockProfile(detectRoleFromPath()));
 
   // When role changes, rebuild the mock profile
   function setRole(newRole: UserRole) {
@@ -87,7 +87,7 @@ const [profile, setProfile] = useState<Profile | null>(null);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const mockUser = { id: `mock-${role}`, email: profile.email };
+  const mockUser = { id: `mock-${role}`, email: profile?.email ?? '' };
 
   // These are no-ops in mock mode but kept so callers compile
   async function signIn(email: string, _password: string): Promise<{ error: string | null }> {
