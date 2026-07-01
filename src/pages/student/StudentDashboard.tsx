@@ -1,49 +1,90 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { supabase, Subject, Lesson, StudentLessonProgress } from '../../lib/supabase';
+import { supabase, Subject, Lesson, StudentLessonProgress, DailyLesson, Profile } from '../../lib/supabase';
 import { useLang } from '../../lib/lang';
 import { useAuth } from '../../lib/auth';
 import AiChatWidget from '../../components/AiChatWidget';
 import HelpTicketModal from '../../components/HelpTicketModal';
 import ReligionSelector from '../../components/ReligionSelector';
-import StudentLessonPlans from './StudentLessonPlans';
+import Sidebar from '../../components/Sidebar';
+import MobileNav from '../../components/MobileNav';
+import { getNavForRole, getDefaultTab } from '../../lib/nav';
 import {
   Lock, CheckCircle, PlayCircle, ChevronRight, BookOpen, Bell,
-  Star, Heart, FlaskConical, Calculator, Globe, Trophy, Zap, Send
+  Star, Heart, FlaskConical, Calculator, Globe, Trophy, Zap, Send,
+  MessageSquare, Mic, MicOff, Volume2, Image as ImageIcon
 } from 'lucide-react';
 
-interface Props { activeTab: string }
+export default function StudentDashboard() {
+  const { profile } = useAuth();
+  const [activeTab, setActiveTab] = useState(getDefaultTab('student'));
 
-export default function StudentDashboard({ activeTab }: Props) {
+  if (!profile) return null;
+
+  const navItems = getNavForRole('student');
+
   return (
-    <div className="animate-fade-in">
-      {activeTab === 'home'             && <StudentHome />}
-      {activeTab === 'lessons'          && <StudentLessons />}
-      {activeTab === 'notifications'    && <StudentNotifications />}
-      {activeTab === 'student_notif'    && <StudentNotifications />}
-      {activeTab === 'tickets'          && <StudentTickets />}
-      {activeTab === 'student_tickets'  && <StudentTickets />}
-      {activeTab === 'lessonPlans'      && <StudentLessonPlans />}
+    <div className="min-h-screen bg-navy-950 bg-mesh">
+      <Sidebar
+        navItems={navItems}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        profile={profile}
+      />
+      <main className="lg:ps-64 min-h-screen">
+        <MobileNav navItems={navItems} activeTab={activeTab} setActiveTab={setActiveTab} profile={profile} />
+        <div className="p-4 lg:p-8 pb-24">
+          <div className="animate-fade-in max-w-4xl mx-auto">
+            {activeTab === 'home' && <StudentHome />}
+            {activeTab === 'lessons' && <StudentLessons />}
+            {activeTab === 'ai_tutor' && <StudentAiTutor />}
+            {activeTab === 'student_notif' && <StudentNotifications />}
+            {activeTab === 'student_tickets' && <StudentTickets />}
+          </div>
+        </div>
+      </main>
+      <HelpTicketModal />
     </div>
   );
 }
 
-// ─── Home ────────────────────────────────────────────────────────────────────
+// ─── Home ───────────────────────────────────────────────────────────────────────
 function StudentHome() {
   const { t, lang } = useLang();
   const { profile, refreshProfile } = useAuth();
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
-  const [progress, setProgress] = useState<Record<string, boolean>>({});
-  const [attempts, setAttempts] = useState<Record<string, boolean>>({});
-  const [ticketOpen, setTicketOpen] = useState(false);
+  const [todayLessons, setTodayLessons] = useState<DailyLesson[]>([]);
   const [showReligion, setShowReligion] = useState(false);
   const [bannerIdx, setBannerIdx] = useState(0);
-  const [notifCount, setNotifCount] = useState(0);
+  const [school, setSchool] = useState<any>(null);
 
   useEffect(() => {
     if (profile?.religion_enabled && !profile.religion_prompt_shown && !profile.religion_choice) {
       setShowReligion(true);
     }
+  }, [profile]);
+
+  useEffect(() => {
+    async function load() {
+      const [bannerRes] = await Promise.all([
+        supabase.from('banners').select('*').eq('is_active', true).order('order_index'),
+      ]);
+      setBanners(bannerRes.data || []);
+
+      if (profile?.school_id) {
+        const { data: schoolData } = await supabase.from('schools').select('*').eq('id', profile.school_id).single();
+        setSchool(schoolData);
+
+        const today = new Date().toISOString().split('T')[0];
+        const { data: lessonsData } = await supabase
+          .from('daily_lessons')
+          .select('*')
+          .eq('school_id', profile.school_id)
+          .eq('scheduled_date', today)
+          .eq('is_active', true);
+        setTodayLessons(lessonsData || []);
+      }
+    }
+    if (profile) load();
   }, [profile]);
 
   useEffect(() => {
@@ -53,47 +94,17 @@ function StudentHome() {
     return () => clearInterval(interval);
   }, [banners.length]);
 
-  useEffect(() => {
-    async function load() {
-      const [subRes, bannerRes, progressRes, attemptRes, notifRes] = await Promise.all([
-        supabase.from('subjects').select('*').eq('is_active', true).order('order_index'),
-        supabase.from('banners').select('*').eq('is_active', true).order('order_index'),
-        supabase.from('student_lesson_progress').select('lesson_id, completed').eq('student_id', profile?.id || '').eq('completed', true),
-        supabase.from('student_quiz_attempts').select('quiz_id, passed').eq('student_id', profile?.id || '').eq('passed', true),
-        supabase.from('notifications').select('id', { count: 'exact', head: true }).or(`recipient_id.eq.${profile?.id},is_global.eq.true`).eq('is_read', false),
-      ]);
-      setSubjects((subRes.data || []).filter(s => {
-        if (s.is_religion) {
-          if (!profile?.religion_enabled) return false;
-          if (profile.religion_choice === 'islamic' && s.name_en !== 'Islamic Education') return false;
-          if (profile.religion_choice === 'christian' && s.name_en !== 'Christian Education') return false;
-        }
-        return true;
-      }));
-      setBanners(bannerRes.data || []);
-      const pMap: Record<string, boolean> = {};
-      (progressRes.data || []).forEach(p => { pMap[p.lesson_id] = true; });
-      setProgress(pMap);
-      const aMap: Record<string, boolean> = {};
-      (attemptRes.data || []).forEach(a => { aMap[a.quiz_id] = true; });
-      setAttempts(aMap);
-      setNotifCount(notifRes.count || 0);
-    }
-    if (profile?.id) load();
-  }, [profile]);
-
   const currentBanner = banners[bannerIdx] || null;
-  const iconMap: Record<string, React.ReactNode> = {
-    'FlaskConical': <FlaskConical className="w-6 h-6 text-white" />,
-    'BookOpen': <BookOpen className="w-6 h-6 text-white" />,
-    'Globe': <Globe className="w-6 h-6 text-white" />,
-    'Calculator': <Calculator className="w-6 h-6 text-white" />,
-    'Star': <Star className="w-6 h-6 text-white" />,
-    'Heart': <Heart className="w-6 h-6 text-white" />,
+
+  const gradeLabels: Record<string, string> = {
+    primary: lang === 'ar' ? 'الابتدائية' : 'Primary',
+    preparatory: lang === 'ar' ? 'الإعدادية' : 'Preparatory',
+    intermediate: lang === 'ar' ? 'المتوسطة' : 'Intermediate',
+    secondary: lang === 'ar' ? 'الثانوية' : 'Secondary',
   };
 
   return (
-    <div className="space-y-5 pb-20 lg:pb-6">
+    <div className="space-y-5">
       {showReligion && (
         <ReligionSelector
           onSelect={async (choice) => {
@@ -105,25 +116,23 @@ function StudentHome() {
         />
       )}
 
-      <div className="flex items-center justify-between">
+      {/* Welcome Header */}
+      <div className="glass-card-3d p-6 flex items-center justify-between">
         <div>
-          <p className="text-white/50 text-sm">{lang === 'ar' ? 'مرحباً،' : 'Welcome back,'}</p>
-          <h1 className="text-xl font-bold text-white">{profile?.full_name?.split(' ')[0]} 👋</h1>
+          <p className="text-gold-400 text-sm">{lang === 'ar' ? 'مرحباً،' : 'Welcome,'}</p>
+          <h1 className="text-2xl font-bold text-white">{profile?.full_name?.split(' ')[0]}</h1>
+          <p className="text-white/40 text-sm mt-1">
+            {school ? `${school.name} · ${gradeLabels[profile?.grade_level || 'secondary'] || ''}` : ''}
+          </p>
         </div>
-        <div className="relative">
-          <button className="p-2 glass rounded-xl text-white/60 hover:text-white transition-colors">
-            <Bell className="w-5 h-5" />
-          </button>
-          {notifCount > 0 && (
-            <span className="absolute -top-1 -end-1 w-4 h-4 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
-              {notifCount}
-            </span>
-          )}
+        <div className="w-16 h-16 bg-gradient-to-br from-gold-500 to-gold-700 rounded-2xl flex items-center justify-center text-navy-950 font-bold text-2xl shadow-lg">
+          {profile?.full_name?.charAt(0)?.toUpperCase() || 'S'}
         </div>
       </div>
 
+      {/* Banner */}
       {currentBanner && (
-        <div className="relative rounded-2xl overflow-hidden h-44 lg:h-56">
+        <div className="relative rounded-2xl overflow-hidden h-44 lg:h-56 glass-card-3d">
           {currentBanner.image_url && (
             <img src={currentBanner.image_url} alt="" className="w-full h-full object-cover absolute inset-0" />
           )}
@@ -139,299 +148,441 @@ function StudentHome() {
               </p>
             )}
           </div>
-          {banners.length > 1 && (
-            <div className="absolute bottom-3 end-4 flex gap-1.5">
-              {banners.map((_, i) => (
-                <button key={i} onClick={() => setBannerIdx(i)}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === bannerIdx ? 'bg-white w-4' : 'bg-white/40'}`} />
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {!currentBanner && (
-        <div className="glass-card p-5 flex items-center gap-4 overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary-900/20 to-transparent" />
-          <div className="relative w-20 h-20 animate-float-slow shrink-0">
-            <StudentMascot />
-          </div>
-          <div className="relative flex-1">
-            <h2 className="font-bold text-white text-lg">
-              {lang === 'ar' ? `أهلاً ${profile?.full_name?.split(' ')[0]}!` : `Hello ${profile?.full_name?.split(' ')[0]}!`}
-            </h2>
-            <p className="text-white/60 text-sm mt-1">
-              {lang === 'ar' ? 'استمر في رحلتك التعليمية اليوم' : 'Continue your learning journey today'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: lang === 'ar' ? 'الدروس' : 'Lessons', value: Object.keys(progress).length, icon: <BookOpen className="w-4 h-4" />, color: 'from-primary-600 to-primary-800' },
-          { label: lang === 'ar' ? 'الاختبارات' : 'Quizzes', value: Object.keys(attempts).length, icon: <CheckCircle className="w-4 h-4" />, color: 'from-emerald-600 to-emerald-800' },
-          { label: lang === 'ar' ? 'المواد' : 'Subjects', value: subjects.filter(s => !s.is_religion).length, icon: <Trophy className="w-4 h-4" />, color: 'from-amber-600 to-amber-800' },
-        ].map((s, i) => (
-          <div key={i} className="glass-card p-3 text-center">
-            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${s.color} flex items-center justify-center text-white mx-auto mb-2`}>
-              {s.icon}
-            </div>
-            <div className="text-lg font-bold text-white">{s.value}</div>
-            <div className="text-white/40 text-xs">{s.label}</div>
-          </div>
-        ))}
-      </div>
-
+      {/* Today's Lessons */}
       <div>
-        <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-          <Zap className="w-4 h-4 text-primary-400" />
-          {lang === 'ar' ? 'مساراتك التعليمية' : 'Your Learning Paths'}
+        <h3 className="font-bold text-gold-400 mb-3 flex items-center gap-2">
+          <BookOpen className="w-5 h-5" />
+          {lang === 'ar' ? 'دروس اليوم' : "Today's Lessons"}
         </h3>
-        <div className="grid grid-cols-2 gap-3">
-          {subjects.map((sub) => {
-            const unlocked = sub.order_index === 1;
-            return (
-              <SubjectCard key={sub.id} subject={sub} unlocked={unlocked} icon={iconMap[sub.icon]} lang={lang} />
-            );
-          })}
-        </div>
-      </div>
-
-      <AiChatWidget onOpenTicket={() => setTicketOpen(true)} />
-      {ticketOpen && <HelpTicketModal onClose={() => setTicketOpen(false)} />}
-    </div>
-  );
-}
-
-function SubjectCard({ subject, unlocked, icon, lang }: {
-  subject: Subject; unlocked: boolean; icon: React.ReactNode; lang: string;
-}) {
-  return (
-    <div className={`relative rounded-2xl overflow-hidden p-4 cursor-pointer transition-all duration-300 ${
-      unlocked ? 'hover:scale-[1.03]' : 'opacity-70'
-    }`} style={{
-      background: unlocked
-        ? `linear-gradient(135deg, ${subject.color_from}, ${subject.color_to})`
-        : 'rgba(255,255,255,0.05)',
-      boxShadow: unlocked ? `0 8px 30px ${subject.color_from}40` : 'none',
-      border: `1px solid ${unlocked ? subject.color_from + '60' : 'rgba(255,255,255,0.1)'}`,
-    }}>
-      {unlocked && <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-transparent" />}
-      <div className="relative">
-        <div className="flex items-start justify-between mb-8">
-          <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            {icon}
+        {todayLessons.length === 0 ? (
+          <div className="glass-card-3d p-6 text-center text-white/30">
+            <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>{lang === 'ar' ? 'لا توجد دروس لليوم' : 'No lessons for today'}</p>
           </div>
-          {!unlocked && (
-            <div className="w-7 h-7 rounded-full bg-black/30 flex items-center justify-center">
-              <Lock3D size={18} />
-            </div>
-          )}
-          {unlocked && (
-            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-              <ChevronRight className="w-3.5 h-3.5 text-white" />
-            </div>
-          )}
-        </div>
-        <div className="font-bold text-white text-sm leading-tight">
-          {lang === 'ar' ? subject.name_ar : subject.name_en}
-        </div>
-        <div className="text-white/60 text-xs mt-0.5">
-          {unlocked ? (lang === 'ar' ? 'متاح' : 'Available') : (lang === 'ar' ? 'مقفول' : 'Locked')}
-        </div>
+        ) : (
+          <div className="space-y-3">
+            {todayLessons.map(lesson => (
+              <div key={lesson.id} className="glass-card-3d p-4 flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-gold-500 to-gold-700 rounded-xl flex items-center justify-center shrink-0">
+                  <BookOpen className="w-6 h-6 text-navy-950" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-white">{lesson.title}</div>
+                  <div className="text-white/50 text-xs mt-1">{lesson.subject}</div>
+                </div>
+                {lesson.attached_media && lesson.attached_media.length > 0 && (
+                  <div className="flex gap-1">
+                    {lesson.attached_media.map((m, i) => (
+                      <div key={i} className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
+                        {m.type === 'image' ? <ImageIcon className="w-3 h-3 text-white/60" /> : <Volume2 className="w-3 h-3 text-white/60" />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Lock3D({ size = 24 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 120">
-      <path d="M30 55 Q30 20 50 20 Q70 20 70 55" stroke="#94a3b8" strokeWidth="10" fill="none" strokeLinecap="round"/>
-      <rect x="15" y="53" width="70" height="55" rx="10" fill="#334155"/>
-      <rect x="18" y="56" width="64" height="49" rx="9" fill="#475569"/>
-      <circle cx="50" cy="75" r="9" fill="#1e293b"/>
-      <rect x="46" y="75" width="8" height="13" rx="2" fill="#1e293b"/>
-      <ellipse cx="38" cy="63" rx="8" ry="4" fill="white" opacity="0.12" transform="rotate(-30 38 63)"/>
-    </svg>
-  );
-}
-
-function StudentMascot() {
-  return (
-    <svg viewBox="0 0 120 120" className="w-full h-full">
-      <circle cx="60" cy="70" r="30" fill="#1e40af" opacity="0.3"/>
-      <rect x="38" y="65" width="44" height="38" rx="8" fill="#2563eb"/>
-      <circle cx="60" cy="52" r="22" fill="#fbbf24"/>
-      <circle cx="52" cy="49" r="3.5" fill="#1e293b"/>
-      <circle cx="68" cy="49" r="3.5" fill="#1e293b"/>
-      <circle cx="53" cy="47.5" r="1.2" fill="white"/>
-      <circle cx="69" cy="47.5" r="1.2" fill="white"/>
-      <path d="M53 58 Q60 63 67 58" stroke="#1e293b" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-      <rect x="28" y="55" width="20" height="26" rx="3" fill="#ef4444"/>
-      <rect x="32" y="59" width="12" height="1.5" rx="1" fill="white" opacity="0.6"/>
-      <rect x="32" y="62" width="9" height="1.5" rx="1" fill="white" opacity="0.4"/>
-      <rect x="32" y="65" width="11" height="1.5" rx="1" fill="white" opacity="0.4"/>
-      <ellipse cx="60" cy="33" rx="26" ry="6" fill="#1e293b"/>
-      <rect x="50" y="20" width="20" height="14" fill="#1e293b"/>
-      <rect x="86" y="35" width="6" height="6" rx="1" fill="#fbbf24"/>
-    </svg>
-  );
-}
-
-// ─── Lessons ─────────────────────────────────────────────────────────────────
+// ─── Lessons ───────────────────────────────────────────────────────────────────
 function StudentLessons() {
   const { t, lang } = useLang();
   const { profile } = useAuth();
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [selected, setSelected] = useState<Subject | null>(null);
-  const [lessonProgress, setLessonProgress] = useState<Record<string, StudentLessonProgress>>({});
-  const [watchingLesson, setWatchingLesson] = useState<Lesson | null>(null);
+  const [lessons, setLessons] = useState<DailyLesson[]>([]);
+  const [selected, setSelected] = useState<DailyLesson | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'primary' | 'preparatory' | 'intermediate' | 'secondary'>('all');
 
   useEffect(() => {
-    supabase.from('subjects').select('*').eq('is_active', true).order('order_index')
-      .then(({ data }) => setSubjects((data || []).filter(s => {
-        if (s.is_religion) return profile?.religion_enabled && profile.religion_choice;
-        return true;
-      })));
-  }, [profile]);
+    async function loadLessons() {
+      if (!profile?.school_id) {
+        setLoading(false);
+        return;
+      }
+      let query = supabase
+        .from('daily_lessons')
+        .select('*')
+        .eq('school_id', profile.school_id)
+        .eq('is_active', true)
+        .order('scheduled_date', { ascending: false });
 
-  useEffect(() => {
-    if (!selected || !profile) return;
-    Promise.all([
-      supabase.from('lessons').select('*').eq('subject_id', selected.id).eq('is_active', true).order('order_index'),
-      supabase.from('student_lesson_progress').select('*').eq('student_id', profile.id).then(({ data }) => {
-        const map: Record<string, StudentLessonProgress> = {};
-        (data || []).forEach(p => { map[p.lesson_id] = p; });
-        return map;
-      }),
-    ]).then(([lessonsRes, progressMap]) => {
-      setLessons(lessonsRes.data || []);
-      setLessonProgress(progressMap);
-    });
-  }, [selected, profile]);
+      if (filter !== 'all') {
+        query = query.eq('target_grade', filter);
+      }
 
-  async function markComplete(lessonId: string) {
-    if (!profile) return;
-    await supabase.from('student_lesson_progress').upsert({
-      student_id: profile.id, lesson_id: lessonId,
-      completed: true, watch_percentage: 100, completed_at: new Date().toISOString(),
-    }, { onConflict: 'student_id,lesson_id' });
-    const { data } = await supabase.from('student_lesson_progress').select('*').eq('student_id', profile.id);
-    const map: Record<string, StudentLessonProgress> = {};
-    (data || []).forEach((p: StudentLessonProgress) => { map[p.lesson_id] = p; });
-    setLessonProgress(map);
-    setWatchingLesson(null);
-  }
+      const { data } = await query;
+      setLessons(data || []);
+      setLoading(false);
+    }
+    loadLessons();
+  }, [profile, filter]);
 
-  function isLessonUnlocked(_lesson: Lesson, index: number): boolean {
-    if (index === 0) return true;
-    const prevLesson = lessons[index - 1];
-    return !!lessonProgress[prevLesson.id]?.completed;
-  }
-
-  if (watchingLesson) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setWatchingLesson(null)} className="p-2 glass rounded-xl text-white/60 hover:text-white">
-            <ChevronRight className={`w-4 h-4 ${lang === 'ar' ? '' : 'rotate-180'}`} />
-          </button>
-          <h2 className="font-bold text-white">{lang === 'ar' ? watchingLesson.title_ar : watchingLesson.title_en}</h2>
-        </div>
-        <div className="glass-card overflow-hidden">
-          {watchingLesson.video_url ? (
-            <div className="aspect-video bg-black">
-              <iframe src={watchingLesson.video_url} className="w-full h-full" allowFullScreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
-            </div>
-          ) : (
-            <div className="aspect-video bg-navy-900 flex items-center justify-center">
-              <div className="text-center">
-                <PlayCircle className="w-16 h-16 text-primary-400 mx-auto mb-3 animate-pulse" />
-                <p className="text-white/40">{lang === 'ar' ? 'الفيديو غير متوفر' : 'Video not available'}</p>
-              </div>
-            </div>
-          )}
-          <div className="p-5">
-            <h3 className="font-bold text-white text-lg">{lang === 'ar' ? watchingLesson.title_ar : watchingLesson.title_en}</h3>
-            <p className="text-white/60 text-sm mt-2">{lang === 'ar' ? watchingLesson.description_ar : watchingLesson.description_en}</p>
-            <button onClick={() => markComplete(watchingLesson.id)} className="mt-4 premium-btn w-full flex items-center justify-center gap-2">
-              <CheckCircle className="w-4 h-4" />
-              {lessonProgress[watchingLesson.id]?.completed ? t('completedLesson') : t('continueLesson')}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const gradeLabels: Record<string, string> = {
+    primary: lang === 'ar' ? 'الابتدائية' : 'Primary',
+    preparatory: lang === 'ar' ? 'الإعدادية' : 'Preparatory',
+    intermediate: lang === 'ar' ? 'المتوسطة' : 'Intermediate',
+    secondary: lang === 'ar' ? 'الثانوية' : 'Secondary',
+  };
 
   if (selected) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSelected(null)} className="p-2 glass rounded-xl text-white/60 hover:text-white">
-            <ChevronRight className={`w-4 h-4 ${lang === 'ar' ? '' : 'rotate-180'}`} />
-          </button>
-          <h2 className="font-bold text-white">{lang === 'ar' ? selected.name_ar : selected.name_en}</h2>
-        </div>
-        <div className="space-y-3">
-          {lessons.map((lesson, idx) => {
-            const unlocked = isLessonUnlocked(lesson, idx);
-            const completed = !!lessonProgress[lesson.id]?.completed;
-            return (
-              <div key={lesson.id} onClick={() => unlocked && setWatchingLesson(lesson)}
-                className={`glass-card p-4 flex items-center gap-4 transition-all duration-200 ${
-                  unlocked ? 'cursor-pointer hover:border-white/25 hover:scale-[1.01]' : 'opacity-50 cursor-not-allowed'
-                }`}>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0`}
-                  style={!completed && unlocked ? { background: `linear-gradient(135deg, ${selected.color_from}, ${selected.color_to})` } : {}}>
-                  {completed ? <CheckCircle className="w-5 h-5 text-emerald-400" /> :
-                    unlocked ? <PlayCircle className="w-5 h-5 text-white" /> :
-                    <Lock className="w-5 h-5 text-white/40" />}
+        <button onClick={() => setSelected(null)} className="flex items-center gap-2 text-white/60 hover:text-white">
+          <ChevronRight className={`w-4 h-4 ${lang === 'ar' ? '' : 'rotate-180'}`} />
+          {lang === 'ar' ? 'رجوع' : 'Back'}
+        </button>
+
+        <div className="glass-card-3d p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="badge badge-info">{selected.subject}</span>
+            <span className="badge" style={{ background: 'rgba(212,175,55,0.2)', border: '1px solid rgba(212,175,55,0.3)', color: '#d4af37' }}>
+              {gradeLabels[selected.target_grade]}
+            </span>
+            <span className="text-white/40 text-xs">
+              {new Date(selected.scheduled_date).toLocaleDateString(lang === 'ar' ? 'ar-SY' : 'en-US')}
+            </span>
+          </div>
+
+          <h2 className="text-xl font-bold text-gold-400 mb-4">{selected.title}</h2>
+
+          <div className="prose prose-invert max-w-none">
+            <p className="text-white/80 whitespace-pre-wrap">{selected.content}</p>
+          </div>
+
+          {/* Media attachments */}
+          {selected.attached_media && selected.attached_media.length > 0 && (
+            <div className="mt-6 space-y-4">
+              <h4 className="text-white font-bold">{lang === 'ar' ? 'الوسائط المرفقة' : 'Attached Media'}</h4>
+              {selected.attached_media.map((media, i) => (
+                <div key={i} className="glass-card p-4">
+                  {media.type === 'image' ? (
+                    <img src={media.data} alt={media.caption || ''} className="w-full rounded-lg" />
+                  ) : (
+                    <audio controls src={media.data} className="w-full" />
+                  )}
+                  {media.caption && <p className="text-white/50 text-xs mt-2">{media.caption}</p>}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white text-sm">{lang === 'ar' ? lesson.title_ar : lesson.title_en}</div>
-                  <div className="text-white/40 text-xs mt-0.5">
-                    {lesson.duration_minutes > 0 ? `${lesson.duration_minutes} ${lang === 'ar' ? 'دقيقة' : 'min'}` : ''}
-                    {!unlocked && ` · ${t('lockedLesson')}`}
-                    {completed && ` · ${t('completedLesson')}`}
-                  </div>
-                </div>
-                {unlocked && <ChevronRight className={`w-4 h-4 text-white/30 ${lang === 'ar' ? 'rotate-180' : ''}`} />}
-              </div>
-            );
-          })}
-          {lessons.length === 0 && <div className="glass-card p-10 text-center text-white/30">{t('noData')}</div>}
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-white">{t('myLessons')}</h1>
-      <div className="grid grid-cols-2 gap-3">
-        {subjects.map(sub => (
-          <div key={sub.id} onClick={() => setSelected(sub)}
-            className="relative rounded-2xl overflow-hidden p-4 cursor-pointer hover:scale-[1.03] transition-all duration-300"
-            style={{ background: `linear-gradient(135deg, ${sub.color_from}, ${sub.color_to})`, boxShadow: `0 8px 30px ${sub.color_from}40` }}>
-            <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-transparent" />
-            <div className="relative">
-              <BookOpen className="w-8 h-8 text-white/80 mb-3" />
-              <div className="font-bold text-white">{lang === 'ar' ? sub.name_ar : sub.name_en}</div>
-              <div className="text-white/60 text-xs mt-1">{lang === 'ar' ? 'اضغط للمتابعة' : 'Tap to continue'}</div>
-            </div>
-          </div>
+    <div className="space-y-5">
+      <h1 className="text-2xl font-bold text-gold-400">{lang === 'ar' ? 'دروسي' : 'My Lessons'}</h1>
+
+      {/* Grade filter */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setFilter('all')}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${filter === 'all' ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30' : 'glass text-white/60'}`}
+        >
+          {lang === 'ar' ? 'الكل' : 'All'}
+        </button>
+        {['primary', 'preparatory', 'intermediate', 'secondary'].map(g => (
+          <button
+            key={g}
+            onClick={() => setFilter(g as any)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${filter === g ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30' : 'glass text-white/60'}`}
+          >
+            {gradeLabels[g]}
+          </button>
         ))}
+      </div>
+
+      {loading
+        ? [...Array(5)].map((_, i) => <div key={i} className="glass-card-3d p-5 shimmer-bg h-24" />)
+        : lessons.length === 0
+          ? <div className="glass-card-3d p-10 text-center text-white/30">{lang === 'ar' ? 'لا توجد دروس' : 'No lessons available'}</div>
+          : lessons.map(lesson => (
+              <div key={lesson.id} onClick={() => setSelected(lesson)}
+                className="glass-card-3d p-5 cursor-pointer hover:border-gold-500/40 transition-colors">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-gold-500 to-gold-700 rounded-xl flex items-center justify-center shrink-0">
+                    <BookOpen className="w-6 h-6 text-navy-950" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="badge badge-info text-xs">{lesson.subject}</span>
+                      <span className="text-white/40 text-xs">{new Date(lesson.scheduled_date).toLocaleDateString()}</span>
+                    </div>
+                    <h3 className="font-bold text-white">{lesson.title}</h3>
+                    <p className="text-white/50 text-sm mt-1 line-clamp-2">{lesson.content}</p>
+                    {lesson.attached_media && lesson.attached_media.length > 0 && (
+                      <div className="flex gap-2 mt-3">
+                        {lesson.attached_media.map((m, i) => (
+                          <div key={i} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                            {m.type === 'image' ? <ImageIcon className="w-4 h-4 text-gold-400" /> : <Volume2 className="w-4 h-4 text-gold-400" />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <ChevronRight className={`w-5 h-5 text-gold-400 shrink-0 ${lang === 'ar' ? 'rotate-180' : ''}`} />
+                </div>
+              </div>
+            ))
+      }
+    </div>
+  );
+}
+
+// ─── AI Tutor ─────────────────────────────────────────────────────────────────
+function StudentAiTutor() {
+  const { lang } = useLang();
+  const { profile } = useAuth();
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'ai'; content: string }>>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [mode, setMode] = useState<'text' | 'voice'>('text');
+  const msgEndRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+  }, [messages]);
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setLoading(true);
+
+    try {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: userMsg, language: lang }),
+      });
+
+      let aiText = lang === 'ar'
+        ? 'أنا معلمك الخصوصي الحنون. كيف يمكنني مساعدتك اليوم يا قمر؟'
+        : "I'm your compassionate private tutor. How can I help you today, dear?";
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.response) aiText = data.response;
+      }
+
+      setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
+
+      // Log to database
+      if (profile) {
+        await supabase.from('chat_messages').insert({
+          student_id: profile.id,
+          school_id: profile.school_id,
+          user_message: userMsg,
+          ai_response: aiText,
+        });
+      }
+    } catch {
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        content: lang === 'ar' ? 'حدث خطأ. حاول مرة أخرى يا قلبي!' : 'Something went wrong. Please try again, dear!',
+      }]);
+    }
+    setLoading(false);
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = e => chunksRef.current.push(e.data);
+      mr.onstop = processVoice;
+      mr.start();
+      mediaRef.current = mr;
+      setRecording(true);
+    } catch {
+      alert(lang === 'ar' ? 'تعذر الوصول للميكروفون' : 'Could not access microphone');
+    }
+  }
+
+  function stopRecording() {
+    mediaRef.current?.stop();
+    mediaRef.current?.stream.getTracks().forEach(t => t.stop());
+    setRecording(false);
+  }
+
+  async function processVoice() {
+    setLoading(true);
+    setMessages(prev => [...prev, { role: 'user', content: lang === 'ar' ? '🎤 رسالة صوتية' : '🎤 Voice message' }]);
+
+    try {
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('audio', blob, 'recording.webm');
+      formData.append('language', lang);
+
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        body: formData,
+      });
+
+      let aiText = lang === 'ar'
+        ? 'سمعت سؤالك يا قمر! كيف يمكنني مساعدتك؟'
+        : "I heard your question, dear! How can I help?";
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.response) aiText = data.response;
+      }
+
+      setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
+    } catch {
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        content: lang === 'ar' ? 'حدث خطأ في معالجة الصوت.' : 'Error processing voice.',
+      }]);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gold-400">{lang === 'ar' ? 'المعلم الخصوصي الذكي' : 'AI Private Tutor'}</h1>
+        <button
+          onClick={() => setMode(mode === 'text' ? 'voice' : 'text')}
+          className={`p-2 rounded-xl ${mode === 'voice' ? 'bg-gold-500/20 text-gold-400' : 'glass text-white/60'}`}
+        >
+          {mode === 'voice' ? <Mic className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
+        </button>
+      </div>
+
+      {/* Chat container */}
+      <div className="glass-card-3d p-4 min-h-[400px] max-h-[500px] overflow-y-auto">
+        {messages.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-24 h-24 bg-gradient-to-br from-gold-500 to-gold-700 rounded-full flex items-center justify-center mx-auto mb-4 animate-float">
+              <MessageSquare className="w-12 h-12 text-navy-950" />
+            </div>
+            <h3 className="text-lg font-bold text-gold-400 mb-2">
+              {lang === 'ar' ? 'مرحباً يا قمر!' : 'Hello, dear!'}
+            </h3>
+            <p className="text-white/50 text-sm">
+              {lang === 'ar'
+                ? 'أنا معلمك الخصوصي الحنون. اسألني أي سؤال عن دروسك!'
+                : "I'm your compassionate private tutor. Ask me anything about your lessons!"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                {msg.role === 'ai' && (
+                  <div className="w-8 h-8 bg-gradient-to-br from-gold-500 to-gold-700 rounded-full flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-4 h-4 text-navy-950" />
+                  </div>
+                )}
+                <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                  msg.role === 'user'
+                    ? 'bg-gold-500/20 text-white rounded-tr-sm border border-gold-500/30'
+                    : 'bg-white/10 text-white/90 rounded-tl-sm'
+                }`}>
+                  {msg.content}
+                </div>
+                {msg.role === 'user' && (
+                  <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold">
+                    {profile?.full_name?.charAt(0)?.toUpperCase() || 'S'}
+                  </div>
+                )}
+              </div>
+            ))}
+            {loading && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-gold-500 to-gold-700 rounded-full flex items-center justify-center shrink-0">
+                  <MessageSquare className="w-4 h-4 text-navy-950" />
+                </div>
+                <div className="bg-white/10 rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={msgEndRef} />
+          </div>
+        )}
+      </div>
+
+      {/* Input area */}
+      <div className="glass-card-3d p-4">
+        {mode === 'text' ? (
+          <div className="flex gap-3">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendMessage()}
+              placeholder={lang === 'ar' ? 'اكتب سؤالك هنا...' : 'Type your question here...'}
+              className="input-field flex-1"
+              disabled={loading}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="premium-btn px-6 disabled:opacity-40"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onMouseDown={startRecording}
+              onMouseUp={stopRecording}
+              onTouchStart={startRecording}
+              onTouchEnd={stopRecording}
+              disabled={loading}
+              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+                recording
+                  ? 'bg-red-500 shadow-[0_0_40px_rgba(239,68,68,0.5)] scale-110'
+                  : 'bg-gradient-to-br from-gold-500 to-gold-700 shadow-[0_0_30px_rgba(212,175,55,0.4)]'
+              } disabled:opacity-40`}
+            >
+              {recording ? <MicOff className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-navy-950" />}
+            </button>
+            <p className="text-white/50 text-sm">
+              {recording
+                ? (lang === 'ar' ? 'جاري التسجيل... اترك للإيقاف' : 'Recording... Release to stop')
+                : (lang === 'ar' ? 'اضغط للتسجيل' : 'Press to record')}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Notifications ────────────────────────────────────────────────────────────
+// ─── Notifications ──────────────────────────────────────────────────────────────
 function StudentNotifications() {
   const { t, lang } = useLang();
   const { profile } = useAuth();
@@ -453,18 +604,18 @@ function StudentNotifications() {
   const typeIcon = { info: '💡', success: '✅', warning: '⚠️', alert: '🔔' };
 
   return (
-    <div className="space-y-4 pb-20 lg:pb-6">
-      <h1 className="text-2xl font-bold text-white">{t('notifications')}</h1>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold text-gold-400">{t('notifications')}</h1>
       <div className="space-y-3">
         {notifs.length === 0 ? (
-          <div className="glass-card p-10 text-center">
-            <Bell className="w-12 h-12 text-white/20 mx-auto mb-3" />
+          <div className="glass-card-3d p-10 text-center">
+            <Bell className="w-12 h-12 text-gold-400/30 mx-auto mb-3" />
             <p className="text-white/30">{t('noData')}</p>
           </div>
         ) : (
           notifs.map(n => (
             <div key={n.id} onClick={() => !n.is_read && markRead(n.id)}
-              className={`glass-card p-4 cursor-pointer transition-all ${!n.is_read ? 'border-primary-500/30 bg-primary-500/5' : ''}`}>
+              className={`glass-card-3d p-4 cursor-pointer transition-all ${!n.is_read ? 'border-gold-500/30' : ''}`}>
               <div className="flex items-start gap-3">
                 <span className="text-xl shrink-0">{typeIcon[n.type as keyof typeof typeIcon] || '🔔'}</span>
                 <div className="flex-1">
@@ -472,7 +623,7 @@ function StudentNotifications() {
                   <div className="text-white/60 text-xs mt-1">{lang === 'ar' ? n.body_ar : n.body_en}</div>
                   <div className="text-white/30 text-xs mt-2">{new Date(n.created_at).toLocaleString(lang === 'ar' ? 'ar-SY' : 'en-US')}</div>
                 </div>
-                {!n.is_read && <span className="w-2 h-2 rounded-full bg-primary-400 shrink-0 mt-1" />}
+                {!n.is_read && <span className="w-2 h-2 rounded-full bg-gold-400 shrink-0 mt-1" />}
               </div>
             </div>
           ))
@@ -482,7 +633,7 @@ function StudentNotifications() {
   );
 }
 
-// ─── Tickets ─────────────────────────────────────────────────────────────────
+// ─── Tickets ───────────────────────────────────────────────────────────────────
 function StudentTickets() {
   const { t, lang } = useLang();
   const { profile } = useAuth();
@@ -528,15 +679,15 @@ function StudentTickets() {
             <span className={selected.status === 'open' ? 'badge-danger' : selected.status === 'in_progress' ? 'badge-warning' : 'badge-success'}>{selected.status}</span>
           </div>
         </div>
-        <div className="glass-card p-4 h-80 overflow-y-auto space-y-3">
+        <div className="glass-card-3d p-4 h-80 overflow-y-auto space-y-3">
           {messages.map(m => (
             <div key={m.id} className={`flex gap-2 ${m.sender_role === 'student' ? 'justify-end' : ''}`}>
-              {m.sender_role !== 'student' && <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-xs text-white shrink-0">T</div>}
-              <div className={`max-w-xs rounded-2xl px-4 py-2 text-sm ${m.sender_role === 'student' ? 'bg-primary-600 text-white rounded-tr-sm' : 'bg-white/10 text-white/80 rounded-tl-sm'}`}>
+              {m.sender_role !== 'student' && <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center text-xs text-navy-950 shrink-0 font-bold">T</div>}
+              <div className={`max-w-xs rounded-2xl px-4 py-2 text-sm ${m.sender_role === 'student' ? 'bg-gold-500/20 text-white rounded-tr-sm border border-gold-500/30' : 'bg-white/10 text-white/80 rounded-tl-sm'}`}>
                 {m.message}
                 <div className="text-xs opacity-50 mt-1">{new Date(m.created_at).toLocaleTimeString()}</div>
               </div>
-              {m.sender_role === 'student' && <div className="w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-xs text-white shrink-0">S</div>}
+              {m.sender_role === 'student' && <div className="w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-xs text-white shrink-0 font-bold">S</div>}
             </div>
           ))}
           <div ref={msgEndRef} />
@@ -553,9 +704,9 @@ function StudentTickets() {
   }
 
   return (
-    <div className="space-y-4 pb-20 lg:pb-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">{t('tickets')}</h1>
+        <h1 className="text-2xl font-bold text-gold-400">{t('tickets')}</h1>
         <button onClick={() => setShowNew(true)} className="premium-btn flex items-center gap-2 text-sm">
           <BookOpen className="w-4 h-4" /> {t('openTicket')}
         </button>
@@ -563,14 +714,14 @@ function StudentTickets() {
       {showNew && <NewTicketForm profile={profile} onClose={() => { setShowNew(false); loadTickets(); }} />}
       <div className="space-y-3">
         {tickets.length === 0 ? (
-          <div className="glass-card p-10 text-center text-white/30">{t('noData')}</div>
+          <div className="glass-card-3d p-10 text-center text-white/30">{t('noData')}</div>
         ) : (
           tickets.map(tk => (
             <div key={tk.id} onClick={() => openTicket(tk)}
-              className="glass-card p-4 cursor-pointer hover:border-white/25 hover:scale-[1.01] transition-all">
+              className="glass-card-3d p-4 cursor-pointer hover:border-gold-500/30 transition-all">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shrink-0">
-                  <BookOpen className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 bg-gradient-to-br from-gold-500 to-gold-700 rounded-xl flex items-center justify-center shrink-0">
+                  <BookOpen className="w-5 h-5 text-navy-950" />
                 </div>
                 <div className="flex-1">
                   <div className="font-medium text-white">{tk.title}</div>
@@ -592,14 +743,13 @@ function NewTicketForm({ profile, onClose }: { profile: any; onClose: () => void
   const { t, lang } = useLang();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [priority, setPriority] = useState('normal');
   const [loading, setLoading] = useState(false);
 
   async function submit() {
     if (!title.trim() || !body.trim() || !profile) return;
     setLoading(true);
     const { data: ticket } = await supabase.from('help_tickets').insert({
-      student_id: profile.id, title: title.trim(), priority, status: 'open',
+      student_id: profile.id, title: title.trim(), status: 'open',
     }).select().maybeSingle();
     if (ticket) {
       await supabase.from('ticket_messages').insert({
@@ -611,32 +761,15 @@ function NewTicketForm({ profile, onClose }: { profile: any; onClose: () => void
   }
 
   return (
-    <div className="glass-card p-5 animate-slide-up space-y-4">
-      <h3 className="font-bold text-white">{t('openTicket')}</h3>
+    <div className="glass-card-3d p-5 animate-slide-up space-y-4">
+      <h3 className="font-bold text-gold-400">{t('openTicket')}</h3>
       <div>
         <label className="text-white/50 text-sm mb-1 block">{t('ticketTitle')} <span className="text-red-400">*</span></label>
-        <input value={title} onChange={e => setTitle(e.target.value)} className="input-field"
-          placeholder={lang === 'ar' ? 'مثال: لا أفهم مسألة في الرياضيات' : "e.g. I don't understand a math problem"} />
+        <input value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
       </div>
       <div>
         <label className="text-white/50 text-sm mb-1 block">{t('ticketMessage')} <span className="text-red-400">*</span></label>
-        <textarea value={body} onChange={e => setBody(e.target.value)} className="input-field resize-none" rows={3}
-          placeholder={lang === 'ar' ? 'اشرح سؤالك بالتفصيل...' : 'Describe your question in detail...'} />
-      </div>
-      <div>
-        <label className="text-white/50 text-sm mb-1 block">{lang === 'ar' ? 'الأولوية' : 'Priority'}</label>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { val: 'low',    ar: 'منخفضة', en: 'Low',    cls: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
-            { val: 'normal', ar: 'عادية',  en: 'Normal', cls: 'border-primary-500/40 text-primary-400 bg-primary-500/10' },
-            { val: 'high',   ar: 'عالية',  en: 'High',   cls: 'border-red-500/40 text-red-400 bg-red-500/10' },
-          ].map(p => (
-            <button key={p.val} type="button" onClick={() => setPriority(p.val)}
-              className={`py-2 rounded-xl border text-sm font-medium transition-all ${priority === p.val ? p.cls : 'border-white/15 text-white/40 hover:text-white/70'}`}>
-              {lang === 'ar' ? p.ar : p.en}
-            </button>
-          ))}
-        </div>
+        <textarea value={body} onChange={e => setBody(e.target.value)} className="input-field resize-none" rows={3} />
       </div>
       <div className="flex gap-2">
         <button onClick={submit} disabled={loading || !title.trim() || !body.trim()} className="premium-btn flex-1">{t('submit')}</button>

@@ -5,9 +5,58 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export type UserRole = 'super_admin' | 'teacher' | 'student';
+export type UserRole = 'super_admin' | 'school' | 'teacher' | 'student';
 
-export type Country = 'syria' | 'ksa' | 'uae' | 'iraq' | 'nigeria';
+export type Country = 'syria' | 'lebanon' | 'ksa' | 'uae' | 'iraq' | 'nigeria';
+
+export type GradeLevel = 'primary' | 'preparatory' | 'intermediate' | 'secondary';
+
+export interface School {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  country: 'syria' | 'lebanon';
+  city?: string;
+  max_students_allowed: number;
+  current_students_count: number;
+  status: 'active' | 'suspended' | 'closed';
+  admin_id?: string;
+  logo_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DailyLesson {
+  id: string;
+  school_id: string;
+  teacher_id?: string;
+  title: string;
+  content: string;
+  target_grade: GradeLevel;
+  subject: string;
+  country: 'syria' | 'lebanon';
+  attached_media: Array<{
+    type: 'image' | 'audio';
+    data: string;
+    caption?: string;
+  }>;
+  is_active: boolean;
+  scheduled_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  student_id: string;
+  school_id?: string;
+  user_message: string;
+  ai_response?: string;
+  context?: Record<string, unknown>;
+  created_at: string;
+}
 
 export type CurriculumCategory = 'high_school' | 'middle_school' | 'primary';
 
@@ -31,7 +80,11 @@ export interface Profile {
   specialization?: 'grade_9' | 'bac_science' | 'bac_literary';
   selected_country?: Country;
   grade_track?: string;
+  grade_level?: GradeLevel;
   certified_curriculums?: Country[];
+  school_id?: string;
+  allowed_days?: number;
+  branch?: string;
   created_at: string;
   updated_at: string;
 }

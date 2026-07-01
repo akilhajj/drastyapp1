@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase, Profile, Banner, CurriculumPdf, Subject, TargetAudience } from '../../lib/supabase';
+import { supabase, Profile, Banner, CurriculumPdf, Subject, TargetAudience, School } from '../../lib/supabase';
 import { useLang } from '../../lib/lang';
 import { useAuth } from '../../lib/auth';
 import SchedulesModule from '../shared/SchedulesModule';
@@ -9,27 +9,50 @@ import LessonPlannerModule from '../shared/LessonPlannerModule';
 import PreferencesPanel from './PreferencesPanel';
 import {
   Users, GraduationCap, Ticket, Check, X, Plus,
-  BarChart3, AlertCircle, Send, Eye, Trash2, RefreshCw
+  BarChart3, AlertCircle, Send, Eye, Trash2, RefreshCw,
+  School as SchoolIcon, TrendingUp, Building
 } from 'lucide-react';
+import Sidebar from '../../components/Sidebar';
+import MobileNav from '../../components/MobileNav';
+import { getNavForRole, getDefaultTab } from '../../lib/nav';
 
-interface AdminDashboardProps { activeTab: string }
+export default function AdminDashboard() {
+  const { profile } = useAuth();
+  const [activeTab, setActiveTab] = useState(getDefaultTab('super_admin'));
 
-export default function AdminDashboard({ activeTab }: AdminDashboardProps) {
+  if (!profile) return null;
+
+  const navItems = getNavForRole('super_admin');
+
   return (
-    <div className="animate-fade-in">
-      {activeTab === 'dashboard'    && <AdminOverview />}
-      {activeTab === 'students'     && <AdminStudents />}
-      {activeTab === 'teachers'     && <AdminTeachers />}
-      {activeTab === 'curriculum'   && <AdminCurriculum />}
-      {activeTab === 'subjects'     && <AdminSubjects />}
-      {activeTab === 'banners'      && <AdminBanners />}
-      {activeTab === 'notifications'&& <AdminNotifications />}
-      {activeTab === 'reports'      && <AdminReports />}
-      {activeTab === 'schedules'    && <SchedulesModule />}
-      {activeTab === 'quizBuilder'  && <QuizBuilder />}
-      {activeTab === 'questionBank' && <QuestionBank />}
-      {activeTab === 'lessonPlanner'&& <LessonPlannerModule />}
-      {activeTab === 'preferences'  && <PreferencesPanel />}
+    <div className="min-h-screen bg-navy-950 bg-mesh">
+      <Sidebar
+        navItems={navItems}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        profile={profile}
+      />
+      <main className="lg:ps-64 min-h-screen">
+        <MobileNav navItems={navItems} activeTab={activeTab} setActiveTab={setActiveTab} profile={profile} />
+        <div className="p-4 lg:p-8 pb-24">
+          <div className="animate-fade-in max-w-7xl mx-auto">
+            {activeTab === 'dashboard'    && <AdminOverview />}
+            {activeTab === 'schools'      && <AdminSchools />}
+            {activeTab === 'students'     && <AdminStudents />}
+            {activeTab === 'teachers'     && <AdminTeachers />}
+            {activeTab === 'curriculum'   && <AdminCurriculum />}
+            {activeTab === 'subjects'     && <AdminSubjects />}
+            {activeTab === 'banners'      && <AdminBanners />}
+            {activeTab === 'notifications'&& <AdminNotifications />}
+            {activeTab === 'reports'      && <AdminReports />}
+            {activeTab === 'schedules'    && <SchedulesModule />}
+            {activeTab === 'quizBuilder'  && <QuizBuilder />}
+            {activeTab === 'questionBank' && <QuestionBank />}
+            {activeTab === 'lessonPlanner'&& <LessonPlannerModule />}
+            {activeTab === 'preferences'  && <PreferencesPanel />}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
@@ -54,6 +77,7 @@ const SPEC_LABEL: Record<string, { ar: string; en: string }> = {
 
 const COUNTRY_LABEL: Record<string, { ar: string; en: string }> = {
   syria:  { ar: 'سوريا',      en: 'Syria' },
+  lebanon: { ar: 'لبنان',      en: 'Lebanon' },
   ksa:    { ar: 'السعودية',   en: 'Saudi Arabia' },
   uae:    { ar: 'الإمارات',  en: 'UAE' },
   iraq:   { ar: 'العراق',     en: 'Iraq' },
@@ -68,26 +92,27 @@ const CATEGORY_LABEL: Record<string, { ar: string; en: string }> = {
 
 // ─── Overview ────────────────────────────────────────────────────────────────
 function AdminOverview() {
-  const { t } = useLang();
-  const [stats, setStats] = useState({ students: 0, teachers: 0, pending: 0, openTickets: 0, closedTickets: 0 });
+  const { t, lang } = useLang();
+  const [stats, setStats] = useState({ schools: 0, students: 0, teachers: 0, pending: 0, openTickets: 0, closedTickets: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [a, b, c, d, e] = await Promise.all([
+      const [a, b, c, d, e, f] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'student').eq('status', 'active'),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'teacher'),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('help_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open'),
         supabase.from('help_tickets').select('id', { count: 'exact', head: true }).eq('status', 'closed'),
+        supabase.from('schools').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       ]);
-      // Fall back to demo counts if Supabase has no real users
       setStats({
-        students:     (a.count || 0) || DEMO_STUDENTS.filter(s => s.status === 'active').length,
-        teachers:     (b.count || 0) || DEMO_TEACHERS.length,
-        pending:      (c.count || 0) || DEMO_STUDENTS.filter(s => s.status === 'pending').length,
-        openTickets:  d.count || 0,
-        closedTickets:e.count || 0,
+        schools: f.count || 0,
+        students: (a.count || 0) || DEMO_STUDENTS.filter(s => s.status === 'active').length,
+        teachers: (b.count || 0) || DEMO_TEACHERS.length,
+        pending: (c.count || 0) || DEMO_STUDENTS.filter(s => s.status === 'pending').length,
+        openTickets: d.count || 0,
+        closedTickets: e.count || 0,
       });
       setLoading(false);
     }
@@ -95,11 +120,12 @@ function AdminOverview() {
   }, []);
 
   const cards = [
-    { label: t('activeStudents'),  value: stats.students,      icon: Users,         color: 'from-primary-600 to-primary-800', glow: 'rgba(37,99,235,0.4)' },
-    { label: t('totalTeachers'),   value: stats.teachers,      icon: GraduationCap, color: 'from-emerald-600 to-emerald-800', glow: 'rgba(5,150,105,0.4)' },
-    { label: t('pendingStudents'), value: stats.pending,       icon: AlertCircle,   color: 'from-amber-600 to-amber-800',     glow: 'rgba(217,119,6,0.4)' },
-    { label: t('openTickets'),     value: stats.openTickets,   icon: Ticket,        color: 'from-red-600 to-red-800',         glow: 'rgba(220,38,38,0.4)' },
-    { label: t('closedTickets'),   value: stats.closedTickets, icon: Check,         color: 'from-teal-600 to-teal-800',       glow: 'rgba(13,148,136,0.4)' },
+    { label: lang === 'ar' ? 'المدارس النشطة' : 'Active Schools', value: stats.schools, icon: Building, color: 'from-gold-600 to-gold-800', glow: 'rgba(212,175,55,0.4)' },
+    { label: t('activeStudents'), value: stats.students, icon: Users, color: 'from-primary-600 to-primary-800', glow: 'rgba(37,99,235,0.4)' },
+    { label: t('totalTeachers'), value: stats.teachers, icon: GraduationCap, color: 'from-emerald-600 to-emerald-800', glow: 'rgba(5,150,105,0.4)' },
+    { label: t('pendingStudents'), value: stats.pending, icon: AlertCircle, color: 'from-amber-600 to-amber-800', glow: 'rgba(217,119,6,0.4)' },
+    { label: t('openTickets'), value: stats.openTickets, icon: Ticket, color: 'from-red-600 to-red-800', glow: 'rgba(220,38,38,0.4)' },
+    { label: t('closedTickets'), value: stats.closedTickets, icon: Check, color: 'from-teal-600 to-teal-800', glow: 'rgba(13,148,136,0.4)' },
   ];
 
   return (
@@ -184,8 +210,8 @@ function RecentTickets() {
   const badge = { open: 'badge-danger', in_progress: 'badge-warning', closed: 'badge-success' } as const;
   const label = { open: t('ticketOpen'), in_progress: t('ticketInProgress'), closed: t('ticketClosed') } as const;
   return (
-    <div className="glass-card p-5">
-      <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Ticket className="w-4 h-4 text-primary-400" />{t('tickets')}</h3>
+    <div className="glass-card-3d p-5">
+      <h3 className="font-bold text-gold-400 mb-4 flex items-center gap-2"><Ticket className="w-4 h-4" />{t('tickets')}</h3>
       {tickets.length === 0
         ? <p className="text-white/30 text-sm text-center py-6">{t('noData')}</p>
         : tickets.map(tk => (
@@ -198,6 +224,300 @@ function RecentTickets() {
             </div>
           ))
       }
+    </div>
+  );
+}
+
+// ─── Schools Management ────────────────────────────────────────────────────────
+function AdminSchools() {
+  const { t, lang } = useLang();
+  const [schools, setSchools] = useState<School[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingSchool, setEditingSchool] = useState<School | null>(null);
+
+  async function loadSchools() {
+    setLoading(true);
+    const { data } = await supabase.from('schools').select('*').order('created_at', { ascending: false });
+    setSchools(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadSchools(); }, []);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gold-400">{lang === 'ar' ? 'إدارة المدارس' : 'School Management'}</h1>
+        <div className="flex gap-2">
+          <button onClick={loadSchools} className="p-2 glass rounded-xl text-white/60 hover:text-white">
+            <RefreshCw className="w-5 h-5" />
+          </button>
+          <button onClick={() => setShowAddModal(true)} className="premium-btn flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            {lang === 'ar' ? 'إضافة مدرسة' : 'Add School'}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        {loading
+          ? [...Array(3)].map((_, i) => <div key={i} className="glass-card-3d p-5 h-32 shimmer-bg" />)
+          : schools.length === 0
+            ? <div className="glass-card-3d p-10 text-center text-white/30">{lang === 'ar' ? 'لا توجد مدارس بعد' : 'No schools yet'}</div>
+            : schools.map(school => (
+                <div key={school.id} className="glass-card-3d p-5">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-12 h-12 bg-gradient-to-br from-gold-500 to-gold-700 rounded-xl flex items-center justify-center">
+                          <Building className="w-6 h-6 text-navy-950" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-white">{school.name}</h3>
+                          <p className="text-white/50 text-sm">{school.city}, {lang === 'ar' ? COUNTRY_LABEL[school.country]?.ar : COUNTRY_LABEL[school.country]?.en}</p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          school.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
+                          school.status === 'suspended' ? 'bg-amber-500/20 text-amber-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>
+                          {school.status === 'active' ? (lang === 'ar' ? 'نشط' : 'Active') :
+                           school.status === 'suspended' ? (lang === 'ar' ? 'معلق' : 'Suspended') :
+                           (lang === 'ar' ? 'مغلق' : 'Closed')}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="p-3 bg-white/5 rounded-xl">
+                          <div className="text-white/50 text-xs">{lang === 'ar' ? 'الطلاب الحاليين' : 'Current Students'}</div>
+                          <div className="text-xl font-bold text-white">{school.current_students_count}</div>
+                        </div>
+                        <div className="p-3 bg-white/5 rounded-xl">
+                          <div className="text-white/50 text-xs">{lang === 'ar' ? 'الحد الأقصى' : 'Max Allowed'}</div>
+                          <div className="text-xl font-bold text-gold-400">{school.max_students_allowed}</div>
+                        </div>
+                        <div className="p-3 bg-white/5 rounded-xl">
+                          <div className="text-white/50 text-xs">{lang === 'ar' ? 'استخدام الحصة' : 'Quota Usage'}</div>
+                          <div className="text-xl font-bold text-white">
+                            {Math.round((school.current_students_count / school.max_students_allowed) * 100)}%
+                          </div>
+                        </div>
+                        <div className="p-3 bg-white/5 rounded-xl">
+                          <div className="text-white/50 text-xs">{lang === 'ar' ? 'البريد' : 'Email'}</div>
+                          <div className="text-sm font-medium text-white truncate">{school.email}</div>
+                        </div>
+                      </div>
+
+                      {/* Quota Progress Bar */}
+                      <div className="mt-4">
+                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              (school.current_students_count / school.max_students_allowed) >= 0.9
+                                ? 'bg-gradient-to-r from-red-500 to-red-600'
+                                : (school.current_students_count / school.max_students_allowed) >= 0.7
+                                  ? 'bg-gradient-to-r from-amber-500 to-amber-600'
+                                  : 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                            }`}
+                            style={{ width: `${Math.min((school.current_students_count / school.max_students_allowed) * 100, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 ms-4">
+                      <button
+                        onClick={() => setEditingSchool(school)}
+                        className="p-2 rounded-lg bg-primary-500/20 text-primary-400 hover:bg-primary-500/30"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const newStatus = school.status === 'active' ? 'suspended' : 'active';
+                          await supabase.from('schools').update({ status: newStatus }).eq('id', school.id);
+                          loadSchools();
+                        }}
+                        className={`p-2 rounded-lg ${school.status === 'active' ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'} hover:opacity-80`}
+                      >
+                        {school.status === 'active' ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+        }
+      </div>
+
+      {showAddModal && (
+        <AddSchoolModal onClose={() => setShowAddModal(false)} onAdded={loadSchools} />
+      )}
+
+      {editingSchool && (
+        <EditSchoolModal school={editingSchool} onClose={() => setEditingSchool(null)} onSaved={loadSchools} />
+      )}
+    </div>
+  );
+}
+
+function AddSchoolModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const { lang } = useLang();
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', address: '', city: '',
+    country: 'syria' as 'syria' | 'lebanon',
+    max_students_allowed: 100,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!form.name || !form.email) {
+      setError(lang === 'ar' ? 'الاسم والبريد مطلوبان' : 'Name and email are required');
+      return;
+    }
+
+    setSaving(true);
+    const { error: insertError } = await supabase.from('schools').insert({
+      ...form,
+      status: 'active',
+    });
+
+    if (insertError) {
+      setError(insertError.message);
+    } else {
+      onAdded();
+      onClose();
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="glass-card-3d p-6 w-full max-w-lg animate-slide-up max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gold-400">{lang === 'ar' ? 'إضافة مدرسة جديدة' : 'Add New School'}</h3>
+          <button onClick={onClose} className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'اسم المدرسة' : 'School Name'} *</label>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input-field" required />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'} *</label>
+              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="input-field" required />
+            </div>
+            <div>
+              <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'الهاتف' : 'Phone'}</label>
+              <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="input-field" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'الدولة' : 'Country'} *</label>
+              <select value={form.country} onChange={e => setForm({ ...form, country: e.target.value as 'syria' | 'lebanon' })} className="input-field">
+                <option value="syria">{lang === 'ar' ? 'سوريا' : 'Syria'}</option>
+                <option value="lebanon">{lang === 'ar' ? 'لبنان' : 'Lebanon'}</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'المدينة' : 'City'}</label>
+              <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="input-field" />
+            </div>
+          </div>
+          <div>
+            <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'العنوان' : 'Address'}</label>
+            <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="input-field" />
+          </div>
+          <div>
+            <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'الحد الأقصى للطلاب' : 'Max Students Allowed'}</label>
+            <input type="number" value={form.max_students_allowed} onChange={e => setForm({ ...form, max_students_allowed: parseInt(e.target.value) || 100 })} className="input-field" min="1" />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="submit" disabled={saving} className="premium-btn flex-1 flex items-center justify-center gap-2">
+              {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check className="w-5 h-5" />}
+              {lang === 'ar' ? 'إضافة' : 'Add'}
+            </button>
+            <button type="button" onClick={onClose} className="premium-btn-outline">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditSchoolModal({ school, onClose, onSaved }: { school: School; onClose: () => void; onSaved: () => void }) {
+  const { lang } = useLang();
+  const [form, setForm] = useState({
+    name: school.name,
+    email: school.email,
+    phone: school.phone || '',
+    address: school.address || '',
+    city: school.city || '',
+    country: school.country,
+    max_students_allowed: school.max_students_allowed,
+    status: school.status,
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    await supabase.from('schools').update(form).eq('id', school.id);
+    onSaved();
+    onClose();
+    setSaving(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="glass-card-3d p-6 w-full max-w-lg animate-slide-up max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gold-400">{lang === 'ar' ? 'تعديل المدرسة' : 'Edit School'}</h3>
+          <button onClick={onClose} className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'اسم المدرسة' : 'School Name'}</label>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input-field" />
+          </div>
+          <div>
+            <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'الحد الأقصى للطلاب' : 'Max Students Allowed'}</label>
+            <input type="number" value={form.max_students_allowed} onChange={e => setForm({ ...form, max_students_allowed: parseInt(e.target.value) || 100 })} className="input-field" min="1" />
+          </div>
+          <div>
+            <label className="text-white/60 text-sm mb-1 block">{lang === 'ar' ? 'الحالة' : 'Status'}</label>
+            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="input-field">
+              <option value="active">{lang === 'ar' ? 'نشط' : 'Active'}</option>
+              <option value="suspended">{lang === 'ar' ? 'معلق' : 'Suspended'}</option>
+              <option value="closed">{lang === 'ar' ? 'مغلق' : 'Closed'}</option>
+            </select>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="submit" disabled={saving} className="premium-btn flex-1 flex items-center justify-center gap-2">
+              {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check className="w-5 h-5" />}
+              {lang === 'ar' ? 'حفظ' : 'Save'}
+            </button>
+            <button type="button" onClick={onClose} className="premium-btn-outline">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

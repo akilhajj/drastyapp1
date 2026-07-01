@@ -53,19 +53,73 @@
     @apply bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md border border-white/15 rounded-2xl shadow-glass;
   }
 
+  .glass-card-3d {
+    @apply relative overflow-hidden;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 1.5rem;
+    backdrop-filter: blur(20px);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+      0 2px 4px rgba(255, 255, 255, 0.1) inset,
+      0 0 30px rgba(212, 175, 55, 0.1);
+    transform-style: preserve-3d;
+    transition: all 0.3s ease;
+  }
+
+  .glass-card-3d::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+    pointer-events: none;
+    border-radius: 1.5rem 1.5rem 0 0;
+  }
+
+  .glass-card-3d:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 48px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+      0 2px 4px rgba(255, 255, 255, 0.15) inset,
+      0 0 40px rgba(212, 175, 55, 0.15);
+    border-color: rgba(212, 175, 55, 0.35);
+  }
+
   .glass-card-hover {
     @apply glass-card hover:border-white/25 hover:shadow-glow transition-all duration-300;
   }
 
   .premium-btn {
-    @apply px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl 
-    hover:from-primary-500 hover:to-primary-600 transition-all duration-300 shadow-glow 
-    hover:shadow-glow-lg hover:-translate-y-0.5 active:translate-y-0;
+    @apply px-6 py-3 font-semibold rounded-xl transition-all duration-300;
+    background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+    color: #050a12;
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+
+  .premium-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(212, 175, 55, 0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+  }
+
+  .premium-btn:active {
+    transform: translateY(0);
   }
 
   .premium-btn-outline {
-    @apply px-6 py-3 border border-primary-500/50 text-primary-300 font-semibold rounded-xl 
-    hover:bg-primary-500/10 hover:border-primary-400 transition-all duration-300;
+    @apply px-6 py-3 border font-semibold rounded-xl transition-all duration-300;
+    border-color: rgba(212, 175, 55, 0.4);
+    color: #d4af37;
+    background: transparent;
+  }
+
+  .premium-btn-outline:hover {
+    background: rgba(212, 175, 55, 0.1);
+    border-color: rgba(212, 175, 55, 0.6);
   }
 
   .input-field {
